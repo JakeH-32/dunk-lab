@@ -7,7 +7,17 @@ corner. This is the browser version of my Unreal Engine 5 class project. It runs
 
 - **Menu:** takeoff style (One Foot, Two Foot, Off Vert), then the dunk. Dunks without a clip yet
   show "COMING SOON".
-- **Player:** looping clip in a chrome monitor frame, with Replay, Pause/Play and Back.
+- **Player:** looping clip in a chrome monitor frame, with View, Replay, Pause/Play and Back.
+- **VIEW (GPU line art, WebGL2):** a short panel explains each view.
+  - **Distance:** every pixel's distance to the nearest line. It's computed live with the Jump Flooding
+    Algorithm and drawn as rings, plus the medial axis halfway between lines.
+  - **Re-stroke:** the lines redrawn from that distance field as clean, even neon strokes.
+  - **Source:** `js/fx.js` is a port of the Unreal shaders.
+    1. A ridge-detector seed pass marks the line pixels.
+    2. log2(size) jump-flooding passes spread each pixel's nearest line.
+    3. A display pass fits sub-pixel strokes to the lines.
+  - **Phone support:** the field packs coordinates into RGBA8, so it also runs where float render
+    targets don't.
 - **Radio:** five stations with presets, ‹ › tuning, volume (drag the left knob, use − / +, or scroll),
   power, a static burst between stations, and auto-advance to the next song.
 

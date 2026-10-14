@@ -2,6 +2,7 @@
 
 import { CLIPS } from "./clips.js";
 import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js";
+import { LineFX } from "./fx.js";
 import { Radio } from "./radio.js";
 import { play, unlock } from "./sound.js";
 
@@ -19,6 +20,34 @@ const pauseKey = $("#key-pause");
 
 const dock = $("#radio-dock");
 const radio = new Radio(dock);
+
+// VIEW modes. 0 shows the clip itself; 1-2 run the GPU line-art pipeline (js/fx.js).
+const MODES = [
+  { label: "ORIGINAL", title: "ORIGINAL", text: "The clip as recorded. Press VIEW to see how the GPU reads the lines." },
+  { label: "DISTANCE", title: "DISTANCE VIEW", text: "Each pixel shows how far it is from the nearest line, worked out live on the GPU. Every ring is 8 px farther out; the bright seams sit halfway between two lines." },
+  { label: "RE-STROKE", title: "RE-STROKE VIEW", text: "The lines redrawn from that distance map: clean, even strokes with a neon glow, drawn by the GPU instead of copied from the video." },
+];
+let mode = 0;
+let fx = null;
+try {
+  if (LineFX.supported()) fx = new LineFX($("#fx"), $("#video"));
+} catch (e) {
+  console.warn("Line-art views unavailable:", e);
+}
+function setMode(m) {
+  mode = m;
+  $("#view-label").textContent = "VIEW: " + MODES[m].label;
+  $("#explain-title").textContent = MODES[m].title;
+  $("#explain-text").textContent = MODES[m].text;
+  if (fx) fx.setMode(m);
+}
+if (!fx) {
+  $("#key-view").hidden = true;
+  $("#explain").hidden = true;
+}
+$("#key-view").addEventListener("click", () => setMode((mode + 1) % MODES.length));
+sfxOn($("#key-view"), "select");
+setMode(0);
 
 // Keep page content clear of the docked radio (phones), via --dock-h.
 new ResizeObserver(() => {

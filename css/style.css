@@ -6,7 +6,7 @@
   --blue: #3d8bff;
   --text: #f4f5f7;
   --muted: #a7adb5;
-  --radio-w: clamp(300px, 26vw, 520px);
+  --radio-w: clamp(300px, 24vw, 480px);
   --dock-h: 0px;
 }
 
@@ -157,6 +157,7 @@ button { font-family: inherit; }
 .i-replay { -webkit-mask-image: url(../assets/ui/icon_replay.png); mask-image: url(../assets/ui/icon_replay.png); }
 .i-pause { -webkit-mask-image: url(../assets/ui/icon_pause.png); mask-image: url(../assets/ui/icon_pause.png); }
 .i-play { -webkit-mask-image: url(../assets/ui/icon_play.png); mask-image: url(../assets/ui/icon_play.png); }
+.i-view { -webkit-mask-image: url(../assets/ui/icon_view.png); mask-image: url(../assets/ui/icon_view.png); width: 17px; }
 .i-back { -webkit-mask-image: url(../assets/ui/icon_back.png); mask-image: url(../assets/ui/icon_back.png); }
 .i-chevron { width: 18px; height: 18px; background: #5a8fff; -webkit-mask-image: url(../assets/ui/icon_chevron.png); mask-image: url(../assets/ui/icon_chevron.png); }
 
@@ -194,6 +195,27 @@ button { font-family: inherit; }
   padding: 37px 28px; /* the bezel opening at half size */
   max-width: 100%;
 }
+.stage {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr; /* video stays centred, explanation sits to its right */
+  align-items: center;
+  width: 100%;
+}
+.stage #frame { grid-column: 2; }
+.screen { position: relative; }
+#fx { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+#explain {
+  grid-column: 3;
+  justify-self: start;
+  width: 270px;
+  margin-left: 18px;
+  padding: 22px 28px;
+  border-image: url(../assets/ui/card_normal.png) 40 fill / 16px stretch;
+}
+#explain b { display: block; color: #5a8fff; font: 700 11px Roboto, sans-serif; letter-spacing: 0.2em; }
+#explain span { display: block; margin-top: 6px; color: #c8cfdb; font: 400 14px/1.4 Roboto, sans-serif; }
+
 #frame video {
   display: block;
   max-width: min(86vw, 960px);
@@ -223,9 +245,9 @@ button { font-family: inherit; }
 
 .controls {
   display: grid;
-  grid-template-columns: repeat(3, 1fr); /* equal widths: labels never resize the row */
+  grid-template-columns: repeat(4, 1fr); /* equal widths: labels never resize the row */
   gap: 12px;
-  width: min(660px, 94vw);
+  width: min(900px, 94vw);
   margin-top: 14px;
 }
 
@@ -360,8 +382,20 @@ button { font-family: inherit; }
 .radio.off .radio-display { opacity: 0.06; }
 .radio.off .needle, .radio.off .led { opacity: 0.15; }
 
+/* Narrower windows: the explanation moves under the keys. */
+@media (max-width: 1700px) {
+  #player { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .stage { display: contents; }
+  .stage #frame, #explain { grid-column: 1; }
+  #caption { order: 0; }
+  #frame { order: 1; }
+  .controls { order: 2; }
+  #explain { order: 3; width: min(560px, 94vw); margin: 12px 0 0; padding: 16px 24px; text-align: center; }
+  #frame video { max-height: calc(100dvh - var(--dock-h) - 300px); }
+}
+
 /* Mid-size desktop windows: keep the centred content clear of the bottom-left radio. */
-@media (min-width: 900px) and (max-width: 1540px) {
+@media (min-width: 900px) and (max-width: 1900px) {
   #app { padding-left: calc(var(--radio-w) + 48px); }
 }
 
@@ -380,12 +414,13 @@ button { font-family: inherit; }
   .card { font-size: 20px; min-height: 56px; padding: 12px 24px; }
   #subtitle { font-size: 12px; margin: 14px 0 16px; letter-spacing: 0.22em; }
   .key { font-size: 12px; letter-spacing: 0.1em; padding: 12px 10px; gap: 6px; }
-  .controls { gap: 8px; }
+  .controls { gap: 8px; grid-template-columns: repeat(2, 1fr); }
+  #explain span { font-size: 13px; }
   .long { display: none; }
   .short { display: inline; }
   #frame { padding: 27px 20px; }
   #frame .bezel { border-image-width: 27px; }
-  #frame video { max-height: calc(100dvh - var(--dock-h) - 190px); }
+  #frame video { max-height: calc(100dvh - var(--dock-h) - 330px); }
 }
 
 @media (hover: none) {
