@@ -49,11 +49,14 @@ $("#key-view").addEventListener("click", () => setMode((mode + 1) % MODES.length
 sfxOn($("#key-view"), "select");
 setMode(0);
 
-// Keep page content clear of the docked radio (phones), via --dock-h.
-new ResizeObserver(() => {
-  const docked = getComputedStyle(dock).transform !== "none";
+// Keep page content clear of the radio when it is docked at the bottom (phone menu), via --dock-h.
+function updateDockSpace() {
+  const s = getComputedStyle(dock);
+  const docked = s.position === "fixed" && s.transform !== "none";
   document.documentElement.style.setProperty("--dock-h", docked ? dock.offsetHeight + "px" : "0px");
-}).observe(dock);
+}
+new ResizeObserver(updateDockSpace).observe(dock);
+window.addEventListener("resize", updateDockSpace);
 let takeoff = null;
 
 // Sound needs a user gesture: the first touch/click anywhere unlocks audio and starts the radio.
@@ -131,6 +134,8 @@ function playDunk(d, t) {
   menu.hidden = true;
   player.hidden = false;
   document.body.classList.add("playing");
+  updateDockSpace();
+  window.scrollTo(0, 0);
 }
 
 function backToMenu() {
@@ -140,6 +145,8 @@ function backToMenu() {
   player.hidden = true;
   menu.hidden = false;
   document.body.classList.remove("playing");
+  updateDockSpace();
+  window.scrollTo(0, 0);
   showDunks(takeoff);
 }
 

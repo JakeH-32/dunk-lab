@@ -421,6 +421,22 @@ button { font-family: inherit; }
   #frame { padding: 27px 20px; }
   #frame .bezel { border-image-width: 27px; }
   #frame video { max-height: calc(100dvh - var(--dock-h) - 330px); }
+
+  /* Phone player: the video gets the screen. The radio leaves the dock and sits below the page
+     (scroll down to reach it, music keeps playing); keys sit right under the video. */
+  body.playing #app { padding: 6px 4px 0; place-items: start center; }
+  body.playing #radio-dock { position: static; transform: none; margin: 28px auto calc(16px + env(safe-area-inset-bottom)); }
+  /* first screen = caption + video area + keys; the keys end at the bottom edge */
+  body.playing #player { grid-template-rows: 22px calc(100dvh - 146px) auto auto; align-items: center; }
+  body.playing #caption { margin: 0; font-size: 11px; line-height: 22px; }
+  body.playing #frame { padding: 19px 14px; }
+  body.playing #frame .bezel { border-image-width: 19px; }
+  body.playing #frame video {
+    max-width: calc(100vw - 36px);
+    max-height: calc(100dvh - 186px);
+  }
+  body.playing .controls { margin-top: 10px; }
+  body.playing .key { min-height: 46px; padding: 10px 8px; }
 }
 
 @media (hover: none) {
