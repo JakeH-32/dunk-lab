@@ -34,3 +34,6 @@ the images and regenerates `js/clips.js`. Run it locally with any static server,
 
 Line-art clips of my own dunks. UI and radio art generated with ChatGPT for this project. Music is
 fan-made instrumental recreations.
+
+When you change CSS or JS, bump the `?v=` number in `index.html` and the imports in `js/*.js`.
+Browsers cache GitHub Pages files for about 10 minutes, so this makes phones fetch the new version.
