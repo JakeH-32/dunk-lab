@@ -36,7 +36,7 @@ try {
 }
 function setMode(m) {
   mode = m;
-  $("#view-label").textContent = "VIEW: " + MODES[m].label;
+  $("#view-label").innerHTML = `<span class="vp">VIEW: </span>${MODES[m].label}`;
   $("#explain-title").textContent = MODES[m].title;
   $("#explain-text").textContent = MODES[m].text;
   if (fx) fx.setMode(m);
@@ -152,6 +152,10 @@ function backToMenu() {
 
 // Reveal the video once it has a real frame (avoids a flash of the wrong size).
 video.addEventListener("loadeddata", () => frame.classList.add("ready"));
+// The phone layout sizes the video box from the clip's aspect ratio (--ar).
+video.addEventListener("loadedmetadata", () => {
+  if (video.videoWidth && video.videoHeight) frame.style.setProperty("--ar", video.videoWidth / video.videoHeight);
+});
 video.addEventListener("error", () => {
   if (!video.getAttribute("src")) return;
   status.textContent = "This dunk couldn't be loaded.";

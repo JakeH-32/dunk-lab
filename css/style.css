@@ -422,21 +422,41 @@ button { font-family: inherit; }
   #frame .bezel { border-image-width: 27px; }
   #frame video { max-height: calc(100dvh - var(--dock-h) - 330px); }
 
-  /* Phone player: the video gets the screen. The radio leaves the dock and sits below the page
-     (scroll down to reach it, music keeps playing); keys sit right under the video. */
-  body.playing #app { padding: 6px 4px 0; place-items: start center; }
+  /* Phone player: the video fills the screen edge to edge (as large as fits without cropping),
+     with the clip name over its top and the keys in one row over its bottom. The explanation and
+     radio sit below it (scroll down; music keeps playing). --ar is set from the clip's size. */
+  body.playing #app { padding: 0; place-items: start center; }
   body.playing #radio-dock { position: static; transform: none; margin: 28px auto calc(16px + env(safe-area-inset-bottom)); }
-  /* first screen = caption + video area + keys; the keys end at the bottom edge */
-  body.playing #player { grid-template-rows: 22px calc(100dvh - 146px) auto auto; align-items: center; }
-  body.playing #caption { margin: 0; font-size: 11px; line-height: 22px; }
-  body.playing #frame { padding: 19px 14px; }
-  body.playing #frame .bezel { border-image-width: 19px; }
-  body.playing #frame video {
-    max-width: calc(100vw - 36px);
-    max-height: calc(100dvh - 186px);
+  body.playing #player { display: grid; grid-template-columns: 100%; grid-template-rows: auto auto; }
+  body.playing #caption, body.playing #frame, body.playing .controls { grid-area: 1 / 1; }
+  body.playing #frame { justify-self: center; padding: 0; }
+  body.playing #frame .bezel { display: none; }
+  body.playing .screen { width: min(100vw, calc(100dvh * var(--ar, 0.75))); aspect-ratio: var(--ar, 0.75); }
+  body.playing #frame video { width: 100%; height: 100%; max-width: none; max-height: none; min-height: 0; }
+  body.playing #caption {
+    align-self: start;
+    z-index: 2;
+    margin: 0;
+    padding: 12px 10px 18px;
+    width: 100%;
+    font-size: 11px;
+    background: linear-gradient(rgba(0, 0, 0, 0.55), transparent);
+    pointer-events: none;
   }
-  body.playing .controls { margin-top: 10px; }
-  body.playing .key { min-height: 46px; padding: 10px 8px; }
+  body.playing .controls {
+    align-self: end;
+    z-index: 2;
+    width: 100%;
+    margin: 0;
+    padding: 18px 8px calc(10px + env(safe-area-inset-bottom));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
+  }
+  body.playing .key { min-height: 40px; padding: 8px 2px; font-size: 10px; letter-spacing: 0.05em; gap: 4px; }
+  body.playing .key .icon { width: 12px; height: 12px; }
+  body.playing .vp, body.playing #key-view .icon { display: none; }
+  body.playing #explain { grid-area: 2 / 1; justify-self: center; margin-top: 14px; }
 }
 
 @media (hover: none) {
