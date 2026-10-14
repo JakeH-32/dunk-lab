@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Dunk Lab</title>
+  <meta name="description" content="Dunk Lab: pick a takeoff and a dunk, watch it as line art, with a retro car radio.">
+  <meta name="theme-color" content="#0b0d10">
+  <link rel="icon" href="assets/ui/icon_play.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,400;0,700;1,700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main id="app">
+    <section id="menu">
+      <header class="title">
+        <div class="plate"><h1>DUNK LAB</h1></div>
+        <div class="divider"></div>
+        <p id="subtitle"></p>
+      </header>
+      <div id="takeoffs" class="list"></div>
+      <div id="dunks" class="list" hidden></div>
+    </section>
+
+    <section id="player" hidden>
+      <p id="caption"></p>
+      <div id="frame">
+        <video id="video" muted loop playsinline autoplay preload="auto"></video>
+        <div class="bezel"></div>
+        <p id="status" hidden></p>
+      </div>
+      <div class="controls">
+        <button type="button" class="key" id="key-replay"><i class="icon i-replay"></i>REPLAY</button>
+        <button type="button" class="key" id="key-pause"><i class="icon i-pause"></i><i class="icon i-play"></i><span class="l-pause">PAUSE</span><span class="l-play">PLAY</span></button>
+        <button type="button" class="key" id="key-back"><i class="icon i-back"></i><span class="long">BACK TO MENU</span><span class="short">BACK</span></button>
+      </div>
+    </section>
+  </main>
+
+  <div id="radio-dock"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
