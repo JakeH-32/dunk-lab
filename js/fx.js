@@ -74,7 +74,7 @@ uniform sampler2D uPrev;
 uniform sampler2D uCur;
 uniform float uBlend;
 void main() {
-  const float kMaxMove = 24.0;
+  const float kMaxMove = 48.0;
   ivec2 p = ivec2(gl_FragCoord.xy);
   vec2 pf = vec2(p);
   vec2 sp = dec(texelFetch(uPrev, p, 0));
@@ -412,6 +412,7 @@ export class LineFX {
 
   setSlowMo(on) {
     this.slowMo = on;
+    this.frameInterval = 1000 / (this.fps * 0.25);
     this.video.playbackRate = on ? 0.25 : 1;
     this.draw();
   }
@@ -428,7 +429,12 @@ export class LineFX {
       if (this.lastMedia >= 0 && step > 0.005 && step < 0.1 && !this.slowMo) this.fps = 0.9 * this.fps + 0.1 * (1 / step);
       this.looped = this.lastMedia >= 0 && media < this.lastMedia;
       this.lastMedia = media;
-      this.newFrameAt = performance.now();
+      // slow motion spreads each in-between over the measured gap between frames (decoders don't deliver
+      // frames exactly 4x slower), so blending never finishes early and freezes until the next frame
+      const t = performance.now();
+      const gap = t - this.newFrameAt;
+      if (this.slowMo && gap > 10 && gap < 1000) this.frameInterval = 0.5 * this.frameInterval + 0.5 * gap;
+      this.newFrameAt = t;
       this.fresh = true;
       this.draw();
     }
@@ -524,7 +530,7 @@ export class LineFX {
     let shown = this.t.cur;
     if (this.slowMo) {
       // in-between frame: slide seeds from the previous toward the current frame, then re-flood
-      const blend = Math.min(1, ((performance.now() - this.newFrameAt) / 1000) * this.fps * this.video.playbackRate);
+      const blend = Math.min(1, (performance.now() - this.newFrameAt) / Math.max(this.frameInterval, 20));
       gl.viewport(0, 0, w, h);
       this.pass(this.progInterp, this.t.a, { uPrev: this.t.prev.tex, uCur: this.t.cur.tex }, { uBlend: blend });
       shown = this.flood();
