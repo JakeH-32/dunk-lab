@@ -32,4 +32,5 @@ export const STATIONS = [
   { name: "HANG TIME 91", track: "FAST LANE", freq: 91.5, src: "assets/audio/FastLane.mp3" },
   { name: "OVERTIME 95", track: "OVER", freq: 95.3, src: "assets/audio/Over.mp3" },
   { name: "BUCKETS 102", track: "REPRESENT", freq: 102.1, src: "assets/audio/Represent.mp3" },
+  { name: "POSTER 107", track: "WE DEM BOYZ", freq: 107.1, src: "assets/audio/WeDemBoyz.mp3" },
 ];
