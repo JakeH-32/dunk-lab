@@ -1,10 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS } from "./clips.js?v=9";
-import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=9";
-import { LineFX } from "./fx.js?v=9";
-import { Radio } from "./radio.js?v=9";
-import { play, unlock } from "./sound.js?v=9";
+import { CLIPS } from "./clips.js?v=10";
+import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=10";
+import { LineFX } from "./fx.js?v=10";
+import { Radio } from "./radio.js?v=10";
+import { play, unlock } from "./sound.js?v=10";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -71,9 +71,10 @@ sfxOn($("#key-slow"), "select");
 setMode(0);
 
 // Keep page content clear of the radio when it is docked at the bottom (phone menu), via --dock-h.
+const phone = window.matchMedia("(max-width: 899px)");
 function updateDockSpace() {
   const s = getComputedStyle(dock);
-  const docked = s.position === "fixed" && s.transform !== "none";
+  const docked = s.position === "fixed" && phone.matches; // only the phone dock sits over the bottom of the page
   document.documentElement.style.setProperty("--dock-h", docked ? dock.offsetHeight + "px" : "0px");
 }
 new ResizeObserver(updateDockSpace).observe(dock);

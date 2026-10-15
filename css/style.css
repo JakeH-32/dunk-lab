@@ -264,7 +264,8 @@ button { font-family: inherit; }
 #radio-dock {
   position: fixed;
   left: 24px;
-  bottom: 20px;
+  top: 50%; /* desktop: centred on the left edge, level with the explanation, clear of the keys */
+  transform: translateY(-50%);
   width: var(--radio-w);
   z-index: 10;
   container-type: inline-size;
@@ -398,9 +399,10 @@ button { font-family: inherit; }
   #frame video { max-height: calc(100dvh - var(--dock-h) - 300px); }
 }
 
-/* Mid-size desktop windows: keep the centred content clear of the bottom-left radio. */
+/* Mid-size desktop windows: keep the centred content clear of the left-edge radio. */
 @media (min-width: 900px) and (max-width: 1900px) {
   #app { padding-left: calc(var(--radio-w) + 48px); }
+  .controls { width: min(1120px, calc(100vw - var(--radio-w) - 96px)); }
 }
 
 .short { display: none; }
@@ -414,7 +416,7 @@ button { font-family: inherit; }
 @media (max-width: 899px) {
   :root { --radio-w: min(calc(100vw - 16px), 460px); }
   #app { padding: 18px 10px calc(var(--dock-h) + 18px); place-items: start center; }
-  #radio-dock { left: 50%; transform: translateX(-50%); bottom: max(8px, env(safe-area-inset-bottom)); }
+  #radio-dock { left: 50%; top: auto; transform: translateX(-50%); bottom: max(8px, env(safe-area-inset-bottom)); }
   .card { font-size: 20px; min-height: 56px; padding: 12px 24px; }
   #subtitle { font-size: 12px; margin: 14px 0 16px; letter-spacing: 0.22em; }
   .key { font-size: 12px; letter-spacing: 0.1em; padding: 12px 10px; gap: 6px; }
