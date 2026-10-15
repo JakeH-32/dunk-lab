@@ -1,10 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS } from "./clips.js?v=10";
-import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=10";
-import { LineFX } from "./fx.js?v=10";
-import { Radio } from "./radio.js?v=10";
-import { play, unlock } from "./sound.js?v=10";
+import { CLIPS } from "./clips.js?v=11";
+import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=11";
+import { LineFX } from "./fx.js?v=11";
+import { Radio } from "./radio.js?v=11";
+import { play, unlock } from "./sound.js?v=11";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -102,6 +102,10 @@ function card(label, { tip, right, disabled } = {}) {
   const b = document.createElement("button");
   b.type = "button";
   b.className = "card" + (disabled ? " disabled" : "");
+  if (disabled) {
+    b.setAttribute("aria-disabled", "true");
+    b.tabIndex = -1;
+  }
   const name = document.createElement("span");
   name.className = "card-name";
   name.textContent = label;
@@ -112,10 +116,31 @@ function card(label, { tip, right, disabled } = {}) {
     t.className = "tip";
     t.innerHTML = `<b>${tip.title}</b><span>${tip.text}</span>`;
     b.appendChild(t);
+    b.addEventListener("pointerenter", () => placeTip(b, t));
   }
   sfxOn(b, disabled ? "back" : "select");
   return b;
 }
+
+// Hover popups sit to the right of the card. If that runs off the screen they go to the left, unless the
+// radio is there, and otherwise below the card (above it near the bottom of the window). Placed on load and
+// resize as well as on hover, so a hidden popup never widens the page.
+function placeTip(cardEl, tipEl) {
+  const c = cardEl.getBoundingClientRect();
+  const w = tipEl.offsetWidth;
+  const gap = 18;
+  const radioRight = dock.getBoundingClientRect().right;
+  let side = "right";
+  if (c.right + gap + w > document.documentElement.clientWidth - 8) {
+    side = c.left - gap - w >= Math.max(8, radioRight + 12) ? "left" : "below";
+    if (side === "below" && c.bottom + 10 + tipEl.offsetHeight > window.innerHeight - 8) side = "above";
+  }
+  tipEl.dataset.side = side;
+}
+function placeTips() {
+  for (const b of takeoffList.querySelectorAll(".card")) placeTip(b, b.querySelector(".tip"));
+}
+window.addEventListener("resize", placeTips);
 
 function showTakeoffs() {
   subtitle.textContent = "CHOOSE A TAKEOFF STYLE";
@@ -195,7 +220,21 @@ $("#key-replay").addEventListener("click", () => {
   video.currentTime = 0;
   video.play().catch(() => {});
 });
-pauseKey.addEventListener("click", () => (video.paused ? video.play().catch(() => {}) : video.pause()));
+const togglePause = () => (video.paused ? video.play().catch(() => {}) : video.pause());
+pauseKey.addEventListener("click", togglePause);
+// Space = pause/play while a clip is showing. It is caught before it reaches a focused key, which would
+// otherwise also be pressed.
+for (const type of ["keydown", "keyup"]) {
+  window.addEventListener(type, (e) => {
+    if (e.code !== "Space" || player.hidden || e.ctrlKey || e.altKey || e.metaKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (type === "keydown" && !e.repeat) {
+      play("select");
+      togglePause();
+    }
+  }, { capture: true });
+}
 $("#key-back").addEventListener("click", backToMenu);
 sfxOn($("#key-replay"), "select");
 sfxOn(pauseKey, "select");
@@ -209,3 +248,5 @@ for (const t of TAKEOFFS) {
   takeoffList.appendChild(b);
 }
 showTakeoffs();
+placeTips();
+document.fonts.ready.then(placeTips);

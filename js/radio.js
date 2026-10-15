@@ -1,8 +1,8 @@
 // Car-stereo radio, ported from WBP_Radio. Controls sit on the faceplate recesses measured in
 // assets/radio/layout.json (1600x640 art space), placed in percent so the radio scales freely.
 
-import { STATIONS } from "./data.js?v=10";
-import { music, play, setMusicLevel, unlocked } from "./sound.js?v=10";
+import { STATIONS } from "./data.js?v=11";
+import { music, play, setMusicLevel, unlocked } from "./sound.js?v=11";
 
 const W = 1600;
 const H = 640;
@@ -108,9 +108,8 @@ export class Radio {
       if (this.power) this.tune(this.nextWithSong(this.preset), { quiet: true });
     });
 
-    this.update();
     this.loop = this.loop.bind(this);
-    requestAnimationFrame(this.loop);
+    this.update();
   }
 
   freqToPos(f) {
@@ -259,6 +258,16 @@ export class Radio {
     this.volKnob.ptr.style.transform = `rotate(${-135 + 270 * this.volume}deg)`;
     this.tuneKnob.ptr.style.transform = `rotate(${-120 + 48 * this.preset}deg)`;
     this.dialTarget = this.freqToPos(st ? st.freq : 88.1 + 3.9 * this.preset);
+    this.kick();
+  }
+
+  // The loop below (fades, dial needle, volume readout) only runs until everything has settled. Every state
+  // change goes through update(), which restarts it.
+  kick() {
+    if (this.looping) return;
+    this.looping = true;
+    this.lastT = 0;
+    requestAnimationFrame(this.loop);
   }
 
   loop(t) {
@@ -274,6 +283,9 @@ export class Radio {
       this.volShownAt = -1e9;
       this.update();
     }
-    requestAnimationFrame(this.loop);
+    const settled = this.gain === this.targetGain && Math.abs(this.dialTarget - this.dialPos) < 1e-4 &&
+      this.volShownAt < 0 && (this.power || music.paused);
+    if (settled) this.looping = false;
+    else requestAnimationFrame(this.loop);
   }
 }

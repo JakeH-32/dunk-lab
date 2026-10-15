@@ -329,7 +329,7 @@ export class LineFX {
     this.onFrame = this.onFrame.bind(this);
     this.loop = this.loop.bind(this);
     this.watchFrames();
-    requestAnimationFrame(this.loop);
+    video.addEventListener("play", () => this.kick());
   }
 
   program(fs) {
@@ -408,6 +408,7 @@ export class LineFX {
     this.canvas.hidden = mode === 0;
     this.fresh = true;
     this.draw();
+    this.kick();
   }
 
   setSlowMo(on) {
@@ -415,6 +416,7 @@ export class LineFX {
     this.frameInterval = 1000 / (this.fps * 0.25);
     this.video.playbackRate = on ? 0.25 : 1;
     this.draw();
+    this.kick();
   }
 
   watchFrames() {
@@ -441,9 +443,25 @@ export class LineFX {
     this.watchFrames();
   }
 
-  // Slow motion and Grassfire animate between video frames, so they redraw every display frame.
+  // Slow motion and Grassfire animate between video frames, so they redraw every display frame. The loop
+  // only runs while that is the case; anything that could start it calls kick().
+  animating() {
+    return this.mode !== 0 && (this.slowMo || this.mode === 3) && !this.canvas.hidden && !this.video.paused && !!this.video.currentSrc;
+  }
+
+  kick() {
+    if (!this.looping && this.animating()) {
+      this.looping = true;
+      requestAnimationFrame(this.loop);
+    }
+  }
+
   loop() {
-    if (this.mode !== 0 && (this.slowMo || this.mode === 3) && !this.canvas.hidden) this.draw();
+    if (!this.animating()) {
+      this.looping = false;
+      return;
+    }
+    this.draw();
     requestAnimationFrame(this.loop);
   }
 

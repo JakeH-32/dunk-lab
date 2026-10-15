@@ -12,6 +12,11 @@
 
 * { box-sizing: border-box; }
 
+html {
+  scrollbar-gutter: stable; /* the scrollbar coming and going between screens doesn't shift the layout */
+  overflow-x: clip; /* hover popups never widen the page */
+}
+
 html, body {
   margin: 0;
   min-height: 100%;
@@ -142,6 +147,13 @@ button { font-family: inherit; }
 .tip b { display: block; color: #5a8fff; font: 700 11px Roboto, sans-serif; letter-spacing: 0.2em; }
 .tip span { display: block; margin-top: 6px; color: #c8cfdb; font: 400 14px/1.35 Roboto, sans-serif; }
 .card:hover .tip { opacity: 1; transform: translate(0, -50%); }
+.card:hover { z-index: 2; }
+.tip[data-side="left"] { left: auto; right: calc(100% + 18px); transform: translate(6px, -50%); }
+.card:hover .tip[data-side="left"] { transform: translate(0, -50%); }
+.tip[data-side="below"] { left: 50%; top: calc(100% + 10px); transform: translate(-50%, -6px); }
+.card:hover .tip[data-side="below"] { transform: translate(-50%, 0); }
+.tip[data-side="above"] { left: 50%; top: auto; bottom: calc(100% + 10px); transform: translate(-50%, 6px); }
+.card:hover .tip[data-side="above"] { transform: translate(-50%, 0); }
 
 /* ---------- icons (white PNGs used as masks so CSS can colour them) ---------- */
 
@@ -187,6 +199,20 @@ button { font-family: inherit; }
 .key:active { border-image-source: url(../assets/ui/key_pressed.png); padding-top: 15px; padding-bottom: 13px; }
 
 .back-key { width: 250px; margin-top: 10px; }
+.controls .key { min-width: 0; padding-left: 14px; padding-right: 14px; } /* clear of the 12 px chrome rim */
+/* Narrower key rows: drop "VIEW:" and tighten the lettering so every label stays off the rim. */
+@container (max-width: 1060px) {
+  .controls .vp { display: none; }
+  .controls .key { font-size: 13px; letter-spacing: 0.1em; gap: 7px; }
+}
+@container (max-width: 920px) {
+  .controls .key { font-size: 12px; letter-spacing: 0.06em; gap: 6px; }
+}
+@container (max-width: 760px) {
+  .controls .long { display: none; }
+  .controls .short { display: inline; }
+}
+
 
 /* ---------- player ---------- */
 
@@ -221,10 +247,14 @@ button { font-family: inherit; }
 #explain span { display: block; margin-top: 6px; color: #c8cfdb; font: 400 14px/1.4 Roboto, sans-serif; }
 
 #frame video {
+  --video-h: calc(100dvh - var(--dock-h) - 230px);
   display: block;
+  /* fixed shape from the start: 9:16 until the clip's own ratio (--ar) is known */
+  height: max(160px, min(1280px, var(--video-h)));
+  width: auto;
+  aspect-ratio: var(--ar, 9 / 16);
   max-width: min(86vw, 960px);
-  max-height: calc(100dvh - var(--dock-h) - 230px);
-  min-height: 160px;
+  object-fit: contain;
   background: #000;
   opacity: 0;
   transition: opacity 0.2s;
@@ -249,9 +279,10 @@ button { font-family: inherit; }
 
 .controls {
   display: grid;
-  grid-template-columns: repeat(5, 1fr); /* equal widths: labels never resize the row */
+  grid-template-columns: repeat(5, minmax(0, 1fr)); /* equal widths: labels never resize the row */
   gap: 12px;
   width: min(1120px, 94vw);
+  container-type: inline-size;
   margin-top: 14px;
 }
 
@@ -369,6 +400,7 @@ button { font-family: inherit; }
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   cursor: pointer;
 }
+.rkey::after { content: ""; position: absolute; inset: -40% -8%; } /* larger hit area than the drawn key */
 .rkey:active { background-image: url(../assets/radio/key_pressed.png); }
 .rkey:active span { transform: translateY(1px); }
 .rkey.small { background-image: url(../assets/radio/small_key_normal.png); color: #cdd6e4; font-size: 2.4cqw; }
@@ -396,13 +428,19 @@ button { font-family: inherit; }
   #frame { order: 1; }
   .controls { order: 2; }
   #explain { order: 3; width: min(560px, 94vw); margin: 12px 0 0; padding: 16px 24px; text-align: center; }
-  #frame video { max-height: calc(100dvh - var(--dock-h) - 300px); }
+  #frame video { --video-h: calc(100dvh - var(--dock-h) - 300px); }
 }
 
 /* Mid-size desktop windows: keep the centred content clear of the left-edge radio. */
 @media (min-width: 900px) and (max-width: 1900px) {
   #app { padding-left: calc(var(--radio-w) + 48px); }
   .controls { width: min(1120px, calc(100vw - var(--radio-w) - 96px)); }
+}
+/* Narrow desktop windows (key row under ~640 px beside the radio): 3 + 2 keys instead of squeezed labels. */
+@media (min-width: 900px) and (max-width: 1060px) {
+  .controls { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .controls .key { grid-column: span 2; }
+  .controls .key:nth-child(4) { grid-column: 2 / span 2; }
 }
 
 .short { display: none; }
@@ -414,7 +452,7 @@ button { font-family: inherit; }
 }
 
 @media (max-width: 899px) {
-  :root { --radio-w: min(calc(100vw - 16px), 460px); }
+  :root { --radio-w: min(calc(100% - 16px), 460px); }
   #app { padding: 18px 10px calc(var(--dock-h) + 18px); place-items: start center; }
   #radio-dock { left: 50%; top: auto; transform: translateX(-50%); bottom: max(8px, env(safe-area-inset-bottom)); }
   .card { font-size: 20px; min-height: 56px; padding: 12px 24px; }
@@ -427,7 +465,7 @@ button { font-family: inherit; }
   .short { display: inline; }
   #frame { padding: 27px 20px; }
   #frame .bezel { border-image-width: 27px; }
-  #frame video { max-height: calc(100dvh - var(--dock-h) - 330px); }
+  #frame video { --video-h: calc(100dvh - var(--dock-h) - 330px); }
 
   /* Phone player: the video fills the screen edge to edge (as large as fits without cropping),
      with the clip name over its top and the keys in one row over its bottom. The explanation and
@@ -436,9 +474,9 @@ button { font-family: inherit; }
   body.playing #radio-dock { position: static; transform: none; margin: 28px auto calc(16px + env(safe-area-inset-bottom)); }
   body.playing #player { display: grid; grid-template-columns: 100%; grid-template-rows: auto auto; }
   body.playing #caption, body.playing #frame, body.playing .controls { grid-area: 1 / 1; }
-  body.playing #frame { justify-self: center; padding: 0; }
+  body.playing #frame { justify-self: stretch; padding: 0; }
   body.playing #frame .bezel { display: none; }
-  body.playing .screen { width: min(100vw, calc(100dvh * var(--ar, 0.75))); aspect-ratio: var(--ar, 0.75); }
+  body.playing .screen { width: min(100%, calc(100dvh * var(--ar, 0.5625))); aspect-ratio: var(--ar, 0.5625); margin: 0 auto; }
   body.playing #frame video { width: 100%; height: 100%; max-width: none; max-height: none; min-height: 0; }
   body.playing #caption {
     align-self: start;
