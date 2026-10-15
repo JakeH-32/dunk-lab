@@ -1,10 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS } from "./clips.js?v=6";
-import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=6";
-import { LineFX } from "./fx.js?v=6";
-import { Radio } from "./radio.js?v=6";
-import { play, unlock } from "./sound.js?v=6";
+import { CLIPS } from "./clips.js?v=7";
+import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=7";
+import { LineFX } from "./fx.js?v=7";
+import { Radio } from "./radio.js?v=7";
+import { play, unlock } from "./sound.js?v=7";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -26,7 +26,12 @@ const MODES = [
   { label: "ORIGINAL", title: "ORIGINAL", text: "The clip as recorded. Press VIEW to see how the GPU reads the lines." },
   { label: "DISTANCE", title: "DISTANCE VIEW", text: "Each pixel shows how far it is from the nearest line, worked out live on the GPU. Every ring is 8 px farther out; the bright seams sit halfway between two lines." },
   { label: "RE-STROKE", title: "RE-STROKE VIEW", text: "The lines redrawn from that distance map: clean, even strokes with a neon glow, drawn by the GPU instead of copied from the video." },
+  { label: "GRASSFIRE", title: "GRASSFIRE VIEW", text: "The distance map read as arrival time: fronts leave every line at once and flash where they meet, halfway between lines." },
+  { label: "CHROME", title: "CHROME VIEW", text: "Every line turned into a 3D chrome tube, lit like a studio sculpture. Its shape comes from the distance map." },
+  { label: "TRAILS", title: "TRAILS VIEW", text: "Moving lines leave fading streaks. Motion is measured on the GPU by matching each line to the nearest line in the frame before." },
+  { label: "SPEED", title: "SPEED VIEW", text: "Lines coloured by how fast they move: blue is still, then cyan, white, and orange for the fastest parts." },
 ];
+const SLOWMO_NOTE = "Slow-mo: the GPU builds the in-between frames, sliding each line toward where it is next, so motion glides at ¼ speed.";
 let mode = 0;
 let fx = null;
 try {
@@ -34,12 +39,26 @@ try {
 } catch (e) {
   console.warn("Line-art views unavailable:", e);
 }
+let slowMo = false;
+function updateExplain() {
+  $("#explain-title").textContent = MODES[mode].title;
+  $("#explain-text").textContent = MODES[mode].text;
+  $("#explain-note").textContent = slowMo && mode > 0 ? SLOWMO_NOTE : "";
+  $("#explain-note").hidden = !(slowMo && mode > 0);
+}
 function setMode(m) {
   mode = m;
   $("#view-label").innerHTML = `<span class="vp">VIEW: </span>${MODES[m].label}`;
-  $("#explain-title").textContent = MODES[m].title;
-  $("#explain-text").textContent = MODES[m].text;
   if (fx) fx.setMode(m);
+  updateExplain();
+}
+function setSlowMo(on) {
+  slowMo = on;
+  $("#key-slow").classList.toggle("on", on);
+  $("#slow-state").textContent = on ? "ON" : "OFF";
+  if (fx) fx.setSlowMo(on);
+  else $("#video").playbackRate = on ? 0.25 : 1;
+  updateExplain();
 }
 if (!fx) {
   $("#key-view").hidden = true;
@@ -47,6 +66,8 @@ if (!fx) {
 }
 $("#key-view").addEventListener("click", () => setMode((mode + 1) % MODES.length));
 sfxOn($("#key-view"), "select");
+$("#key-slow").addEventListener("click", () => setSlowMo(!slowMo));
+sfxOn($("#key-slow"), "select");
 setMode(0);
 
 // Keep page content clear of the radio when it is docked at the bottom (phone menu), via --dock-h.
@@ -130,6 +151,7 @@ function playDunk(d, t) {
   status.hidden = true;
   frame.classList.remove("ready");
   video.src = `clips/${d.key}${t.key}.mp4`;
+  setSlowMo(false);
   video.play().catch(() => {});
   menu.hidden = true;
   player.hidden = false;

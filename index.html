@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,400;0,700;1,700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=6">
+  <link rel="stylesheet" href="css/style.css?v=7">
 </head>
 <body>
   <main id="app">
@@ -38,10 +38,12 @@
         <aside id="explain" aria-live="polite">
           <b id="explain-title"></b>
           <span id="explain-text"></span>
+          <em id="explain-note" hidden></em>
         </aside>
       </div>
       <div class="controls">
         <button type="button" class="key" id="key-view"><i class="icon i-view"></i><span id="view-label">VIEW: ORIGINAL</span></button>
+        <button type="button" class="key" id="key-slow"><i class="icon i-slow"></i><span class="long">SLOW-MO: </span><span class="short">SLOW </span><span id="slow-state">OFF</span></button>
         <button type="button" class="key" id="key-replay"><i class="icon i-replay"></i>REPLAY</button>
         <button type="button" class="key" id="key-pause"><i class="icon i-pause"></i><i class="icon i-play"></i><span class="l-pause">PAUSE</span><span class="l-play">PLAY</span></button>
         <button type="button" class="key" id="key-back"><i class="icon i-back"></i><span class="long">BACK TO MENU</span><span class="short">BACK</span></button>
@@ -51,6 +53,6 @@
 
   <div id="radio-dock"></div>
 
-  <script type="module" src="js/main.js?v=6"></script>
+  <script type="module" src="js/main.js?v=7"></script>
 </body>
 </html>

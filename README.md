@@ -8,16 +8,23 @@ corner. This is the browser version of my Unreal Engine 5 class project. It runs
 - **Menu:** takeoff style (One Foot, Two Foot, Off Vert), then the dunk. Dunks without a clip yet
   show "COMING SOON".
 - **Player:** looping clip in a chrome monitor frame, with View, Replay, Pause/Play and Back.
-- **VIEW (GPU line art, WebGL2):** a short panel explains each view.
-  - **Distance:** every pixel's distance to the nearest line. It's computed live with the Jump Flooding
-    Algorithm and drawn as rings, plus the medial axis halfway between lines.
-  - **Re-stroke:** the lines redrawn from that distance field as clean, even neon strokes.
-  - **Source:** `js/fx.js` is a port of the Unreal shaders.
-    1. A ridge-detector seed pass marks the line pixels.
-    2. log2(size) jump-flooding passes spread each pixel's nearest line.
-    3. A display pass fits sub-pixel strokes to the lines.
-  - **Phone support:** the field packs coordinates into RGBA8, so it also runs where float render
-    targets don't.
+- **VIEW (GPU line art, WebGL2):** seven views, each with a short explanation beside the video.
+  1. **Original**
+  2. **Distance:** every pixel's distance to the nearest line. It's computed live with the Jump
+     Flooding Algorithm and shown as rings, plus the medial axis.
+  3. **Re-stroke:** the lines redrawn from that distance field as clean neon strokes.
+  4. **Grassfire:** the field read as arrival time. Fronts leave every line at once and flash where
+     they meet.
+  5. **Chrome:** the lines extruded into lit 3D tubes.
+  6. **Trails:** moving lines leave fading streaks.
+  7. **Speed:** lines colored by how fast they move.
+- **SLOW-MO:** 0.25x playback. The GPU builds in-between frames by sliding each line toward its
+  position in the next frame, then rebuilding the distance field.
+- **How the motion is measured:** each line point is matched to the nearest line in the previous
+  frame's distance field (normal flow). `js/fx.js` is a port of the Unreal shaders in
+  `Tools/FXLab/motion`.
+- **Phone support:** the fields pack coordinates into RGBA8, so it also runs on phones without float
+  render targets.
 - **Radio:** five stations with presets, ‹ › tuning, volume (drag the left knob, use − / +, or scroll),
   power, a static burst between stations, and auto-advance to the next song.
 

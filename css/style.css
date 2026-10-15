@@ -158,6 +158,10 @@ button { font-family: inherit; }
 .i-pause { -webkit-mask-image: url(../assets/ui/icon_pause.png); mask-image: url(../assets/ui/icon_pause.png); }
 .i-play { -webkit-mask-image: url(../assets/ui/icon_play.png); mask-image: url(../assets/ui/icon_play.png); }
 .i-view { -webkit-mask-image: url(../assets/ui/icon_view.png); mask-image: url(../assets/ui/icon_view.png); width: 17px; }
+.i-slow { -webkit-mask-image: url(../assets/ui/icon_play.png); mask-image: url(../assets/ui/icon_play.png); transform: scaleX(0.75); }
+#key-slow.on { color: #8fd0ff; }
+#key-slow.on .icon { background: #8fd0ff; }
+#explain em { display: block; margin-top: 8px; color: #8fb8ff; font: italic 400 13px/1.4 Roboto, sans-serif; }
 .i-back { -webkit-mask-image: url(../assets/ui/icon_back.png); mask-image: url(../assets/ui/icon_back.png); }
 .i-chevron { width: 18px; height: 18px; background: #5a8fff; -webkit-mask-image: url(../assets/ui/icon_chevron.png); mask-image: url(../assets/ui/icon_chevron.png); }
 
@@ -245,9 +249,9 @@ button { font-family: inherit; }
 
 .controls {
   display: grid;
-  grid-template-columns: repeat(4, 1fr); /* equal widths: labels never resize the row */
+  grid-template-columns: repeat(5, 1fr); /* equal widths: labels never resize the row */
   gap: 12px;
-  width: min(900px, 94vw);
+  width: min(1120px, 94vw);
   margin-top: 14px;
 }
 
@@ -415,6 +419,7 @@ button { font-family: inherit; }
   #subtitle { font-size: 12px; margin: 14px 0 16px; letter-spacing: 0.22em; }
   .key { font-size: 12px; letter-spacing: 0.1em; padding: 12px 10px; gap: 6px; }
   .controls { gap: 8px; grid-template-columns: repeat(2, 1fr); }
+  #key-slow { grid-column: span 2; }
   #explain span { font-size: 13px; }
   .long { display: none; }
   .short { display: inline; }
@@ -449,13 +454,14 @@ button { font-family: inherit; }
     width: 100%;
     margin: 0;
     padding: 18px 8px calc(10px + env(safe-area-inset-bottom));
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
     background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
   }
   body.playing .key { min-height: 40px; padding: 8px 2px; font-size: 10px; letter-spacing: 0.05em; gap: 4px; }
   body.playing .key .icon { width: 12px; height: 12px; }
-  body.playing .vp, body.playing #key-view .icon { display: none; }
+  body.playing .vp, body.playing #key-view .icon, body.playing #key-slow .icon { display: none; }
+  body.playing #key-slow { grid-column: auto; }
   body.playing #explain { grid-area: 2 / 1; justify-self: center; margin-top: 14px; }
 }
 
