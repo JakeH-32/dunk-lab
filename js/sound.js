@@ -19,8 +19,10 @@ let musicGain = null;
 export const music = new Audio();
 music.preload = "auto";
 
+// True once the audio context exists (created on the first gesture). It may still be resuming; anything played
+// meanwhile starts as soon as it runs, so callers must not wait for "running" (iOS resumes asynchronously).
 export function unlocked() {
-  return ctx !== null && ctx.state === "running";
+  return ctx !== null;
 }
 
 export function unlock() {

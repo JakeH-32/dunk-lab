@@ -1,10 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS } from "./clips.js?v=7";
-import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=7";
-import { LineFX } from "./fx.js?v=7";
-import { Radio } from "./radio.js?v=7";
-import { play, unlock } from "./sound.js?v=7";
+import { CLIPS } from "./clips.js?v=8";
+import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=8";
+import { LineFX } from "./fx.js?v=8";
+import { Radio } from "./radio.js?v=8";
+import { play, unlock } from "./sound.js?v=8";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -80,11 +80,15 @@ new ResizeObserver(updateDockSpace).observe(dock);
 window.addEventListener("resize", updateDockSpace);
 let takeoff = null;
 
-// Sound needs a user gesture: the first touch/click anywhere unlocks audio and starts the radio.
-window.addEventListener("pointerdown", () => {
-  unlock();
-  radio.start();
-}, { capture: true });
+// Sound needs a user gesture, and iOS only accepts some kinds (touchend/click, not pointerdown). Every tap,
+// click or key press anywhere (radio, buttons, video, background) unlocks audio and starts the radio until it plays.
+for (const type of ["pointerdown", "pointerup", "touchend", "click", "keydown"]) {
+  window.addEventListener(type, () => {
+    unlock();
+    radio.start();
+  }, { capture: true });
+}
+window.dunkRadio = radio; // handy for debugging in the browser console
 
 function sfxOn(btn, pressSound) {
   btn.addEventListener("pointerenter", (e) => {

@@ -1,8 +1,8 @@
 // Car-stereo radio, ported from WBP_Radio. Controls sit on the faceplate recesses measured in
 // assets/radio/layout.json (1600x640 art space), placed in percent so the radio scales freely.
 
-import { STATIONS } from "./data.js?v=7";
-import { music, play, setMusicLevel, unlocked } from "./sound.js?v=7";
+import { STATIONS } from "./data.js?v=8";
+import { music, play, setMusicLevel, unlocked } from "./sound.js?v=8";
 
 const W = 1600;
 const H = 640;
@@ -141,10 +141,10 @@ export class Radio {
   // ----- behaviour -------------------------------------------------------------------------
 
   start() {
-    // First user gesture: begin playing the current preset.
-    if (this.started) return;
-    this.started = true;
-    if (this.power) this.tune(this.preset, { quiet: true });
+    // Any user gesture: begin playing the current preset. Retries on every gesture until playback really
+    // starts, because mobile browsers reject play() outside a gesture they accept (e.g. pointerdown on iOS).
+    if (this.started || !this.power || !music.paused) return;
+    this.tune(this.preset, { quiet: true });
   }
 
   nextWithSong(i) {
@@ -159,9 +159,9 @@ export class Radio {
     if (this.power && unlocked()) {
       if (!quiet) play("static", { volume: cube(this.volume) * 0.9 });
       if (st) {
-        music.src = st.src;
+        if (!music.src.endsWith(st.src)) music.src = st.src;
         music.currentTime = 0;
-        music.play().catch(() => {});
+        music.play().then(() => (this.started = true)).catch(() => {});
         this.targetGain = 1;
       } else {
         music.pause();
