@@ -27,10 +27,10 @@ export const DUNKS = [
 
 // Presets 1-6. A preset without a song shows NO SIGNAL.
 export const STATIONS = [
-  { name: "BUCKETS 102", track: "REPRESENT", freq: 102.1, src: "assets/audio/Represent.mp3" },
+  { name: "DUNK FM", track: "REPRESENT", freq: 98.7, src: "assets/audio/Represent.mp3" },
   { name: "SLAM 104", track: "THE REAL SLIM SHADY", freq: 104.3, src: "assets/audio/Song2.mp3" },
   { name: "HANG TIME 91", track: "FAST LANE", freq: 91.5, src: "assets/audio/FastLane.mp3" },
   { name: "OVERTIME 95", track: "OVER", freq: 95.3, src: "assets/audio/Over.mp3" },
-  { name: "DUNK FM", track: "SHOOK ONES", freq: 98.7, src: "assets/audio/DefaultTheme.mp3" },
+  { name: "BUCKETS 102", track: "SHOOK ONES", freq: 102.1, src: "assets/audio/DefaultTheme.mp3" },
   { name: "POSTER 107", track: "WE DEM BOYZ", freq: 107.1, src: "assets/audio/WeDemBoyz.mp3" },
 ];
