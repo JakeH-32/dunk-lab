@@ -518,3 +518,9 @@ button { font-family: inherit; }
   paint-order: stroke fill;
 }
 .card.disabled .card-name { -webkit-text-stroke: 0; }
+
+/* Optical centring: trim each label's line box to the capital letters so flexbox centres the caps, not the
+   ascender/descender box (which sits the text high). Browsers without text-box support ignore this. */
+.card-name, .key > span, .pill, .tip b {
+  text-box: trim-both cap alphabetic;
+}
