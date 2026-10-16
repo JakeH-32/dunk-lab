@@ -509,3 +509,12 @@ button { font-family: inherit; }
   .card:hover { border-image-source: url(../assets/ui/card_normal.png); }
   .key:hover { border-image-source: url(../assets/ui/key_normal.png); }
 }
+
+/* ---------- black outline on white text ---------- */
+/* The stroke is drawn behind the fill (paint-order), so only its outer half shows: about 0.06em, which scales with
+   each text size like the Unreal build's outlines (size / 16 px). */
+.plate h1, .card-name, .pill, .key, .tip span, #explain span, .banner-station, .rkey {
+  -webkit-text-stroke: 0.12em #000;
+  paint-order: stroke fill;
+}
+.card.disabled .card-name { -webkit-text-stroke: 0; }
