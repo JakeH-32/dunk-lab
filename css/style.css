@@ -6,7 +6,7 @@
   --blue: #3d8bff;
   --text: #f4f5f7;
   --muted: #a7adb5;
-  --radio-w: clamp(300px, 24vw, 480px);
+  --radio-w: clamp(255px, 20.4vw, 408px); /* 85% of the old size: a corner widget */
   --dock-h: 0px;
 }
 
@@ -295,9 +295,10 @@ button { font-family: inherit; }
 #radio-dock {
   position: fixed;
   left: 24px;
-  top: 50%; /* desktop: centred on the left edge, level with the explanation, clear of the keys */
-  transform: translateY(-50%);
+  top: 24px; /* desktop: top-left corner, clear of the content and the keys */
   width: var(--radio-w);
+  display: flex;
+  flex-direction: column-reverse; /* station banner below the faceplate */
   z-index: 10;
   container-type: inline-size;
   user-select: none;
@@ -306,7 +307,7 @@ button { font-family: inherit; }
 
 .banner {
   text-align: center;
-  margin-bottom: 1.5cqw;
+  margin-top: 1.5cqw;
   opacity: 0;
   pointer-events: none;
 }
@@ -454,7 +455,8 @@ button { font-family: inherit; }
 @media (max-width: 899px) {
   :root { --radio-w: min(calc(100% - 16px), 460px); }
   #app { padding: 18px 10px calc(var(--dock-h) + 18px); place-items: start center; }
-  #radio-dock { left: 50%; top: auto; transform: translateX(-50%); bottom: max(8px, env(safe-area-inset-bottom)); }
+  #radio-dock { left: 50%; top: auto; transform: translateX(-50%); bottom: max(8px, env(safe-area-inset-bottom)); flex-direction: column; }
+  .banner { margin: 0 0 1.5cqw; }
   .card { font-size: 20px; min-height: 56px; padding: 12px 24px; }
   #subtitle { font-size: 12px; margin: 14px 0 16px; letter-spacing: 0.22em; }
   .key { font-size: 12px; letter-spacing: 0.1em; padding: 12px 10px; gap: 6px; }

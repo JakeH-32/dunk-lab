@@ -1,10 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS } from "./clips.js?v=14";
-import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=14";
-import { LineFX } from "./fx.js?v=14";
-import { Radio } from "./radio.js?v=14";
-import { play, unlock } from "./sound.js?v=14";
+import { CLIPS } from "./clips.js?v=15";
+import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=15";
+import { LineFX } from "./fx.js?v=15";
+import { Radio } from "./radio.js?v=15";
+import { play, unlock } from "./sound.js?v=15";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
