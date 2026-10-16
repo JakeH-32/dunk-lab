@@ -1,10 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS } from "./clips.js?v=11";
-import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=11";
-import { LineFX } from "./fx.js?v=11";
-import { Radio } from "./radio.js?v=11";
-import { play, unlock } from "./sound.js?v=11";
+import { CLIPS } from "./clips.js?v=12";
+import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=12";
+import { LineFX } from "./fx.js?v=12";
+import { Radio } from "./radio.js?v=12";
+import { play, unlock } from "./sound.js?v=12";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -222,16 +222,38 @@ $("#key-replay").addEventListener("click", () => {
 });
 const togglePause = () => (video.paused ? video.play().catch(() => {}) : video.pause());
 pauseKey.addEventListener("click", togglePause);
-// Space = pause/play while a clip is showing. It is caught before it reaches a focused key, which would
-// otherwise also be pressed.
+// Keyboard shortcuts, the same as the Unreal build. Player: Space pause/play, R replay, V view, S slow-mo,
+// Backspace/Esc back. Menu: 1-3 pick a takeoff, 1-6 pick a dunk, Backspace/Esc back to the takeoffs.
+// Handled keys are stopped before they reach a focused button, which would otherwise also be pressed.
+const PLAYER_KEYS = {
+  Space: ["select", () => togglePause()],
+  KeyR: ["select", () => $("#key-replay").click()],
+  KeyV: ["select", () => fx && $("#key-view").click()],
+  KeyS: ["select", () => $("#key-slow").click()],
+  Backspace: ["back", () => backToMenu()],
+  Escape: ["back", () => backToMenu()],
+};
+function menuKey(code) {
+  const digit = /^(Digit|Numpad)([1-6])$/.exec(code);
+  if (!takeoffList.hidden) {
+    const card = digit && takeoffList.querySelectorAll(".card")[digit[2] - 1];
+    return card ? ["select", () => card.click()] : null;
+  }
+  if (code === "Backspace" || code === "Escape") return ["back", () => showTakeoffs()];
+  const card = digit && dunkList.querySelectorAll(".card")[digit[2] - 1];
+  if (!card) return null;
+  return card.classList.contains("disabled") ? ["back", () => {}] : ["select", () => card.click()];
+}
 for (const type of ["keydown", "keyup"]) {
   window.addEventListener(type, (e) => {
-    if (e.code !== "Space" || player.hidden || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const action = player.hidden ? menuKey(e.code) : PLAYER_KEYS[e.code];
+    if (!action) return;
     e.preventDefault();
     e.stopPropagation();
     if (type === "keydown" && !e.repeat) {
-      play("select");
-      togglePause();
+      play(action[0]);
+      action[1]();
     }
   }, { capture: true });
 }
