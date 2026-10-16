@@ -235,16 +235,18 @@ button { font-family: inherit; }
 .screen { position: relative; }
 #fx { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
-#explain {
+#explain { /* a subtle detail tab against the video's right edge, vertically centred */
   grid-column: 3;
   justify-self: start;
-  width: 270px;
-  margin-left: 18px;
-  padding: 22px 28px;
-  border-image: url(../assets/ui/card_normal.png) 40 fill / 16px stretch;
+  align-self: center;
+  width: 220px;
+  margin-left: 14px;
+  padding: 14px 18px;
+  border-image: url(../assets/ui/card_normal.png) 40 fill / 12px stretch;
+  opacity: 0.85;
 }
-#explain b { display: block; color: #5a8fff; font: 700 11px Roboto, sans-serif; letter-spacing: 0.2em; }
-#explain span { display: block; margin-top: 6px; color: #c8cfdb; font: 400 14px/1.4 Roboto, sans-serif; }
+#explain b { display: block; color: #5a8fff; font: 700 10px Roboto, sans-serif; letter-spacing: 0.2em; }
+#explain span { display: block; margin-top: 5px; color: #c8cfdb; font: 400 13px/1.4 Roboto, sans-serif; }
 
 #frame video {
   --video-h: calc(100dvh - var(--dock-h) - 230px);
@@ -420,8 +422,8 @@ button { font-family: inherit; }
 .radio.off .radio-display { opacity: 0.06; }
 .radio.off .needle, .radio.off .led { opacity: 0.15; }
 
-/* Narrower windows: the explanation moves under the keys. */
-@media (max-width: 1700px) {
+/* Narrow windows (no room beside the video): the explanation moves under the keys. */
+@media (max-width: 1099px) {
   #player { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; }
   .stage { display: contents; }
   .stage #frame, #explain { grid-column: 1; }

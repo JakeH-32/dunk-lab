@@ -1,10 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS } from "./clips.js?v=17";
-import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=17";
-import { LineFX } from "./fx.js?v=17";
-import { Radio } from "./radio.js?v=17";
-import { play, unlock } from "./sound.js?v=17";
+import { CLIPS } from "./clips.js?v=18";
+import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=18";
+import { LineFX } from "./fx.js?v=18";
+import { Radio } from "./radio.js?v=18";
+import { play, unlock } from "./sound.js?v=18";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -23,7 +23,7 @@ const radio = new Radio(dock);
 
 // VIEW modes. 0 shows the clip itself; 1-2 run the GPU line-art pipeline (js/fx.js).
 const MODES = [
-  { label: "ORIGINAL", title: "ORIGINAL", text: "The clip as recorded. Press VIEW to see how the GPU reads the lines." },
+  { label: "LINE ART", title: "LINE ART", text: "Your dunk traced as line art. Press VIEW to see how the GPU reads the lines." },
   { label: "DISTANCE", title: "DISTANCE VIEW", text: "Each pixel shows how far it is from the nearest line, worked out live on the GPU. Every ring is 8 px farther out; the bright seams sit halfway between two lines." },
   { label: "RE-STROKE", title: "RE-STROKE VIEW", text: "The lines redrawn from that distance map: clean, even strokes with a neon glow, drawn by the GPU instead of copied from the video." },
   { label: "GRASSFIRE", title: "GRASSFIRE VIEW", text: "The distance map read as arrival time: fronts leave every line at once and flash where they meet, halfway between lines." },
