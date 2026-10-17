@@ -1,10 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS, REAL } from "./clips.js?v=23";
-import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=23";
-import { LineFX } from "./fx.js?v=23";
-import { Radio } from "./radio.js?v=23";
-import { play, unlock } from "./sound.js?v=23";
+import { CLIPS, REAL } from "./clips.js?v=24";
+import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=24";
+import { LineFX } from "./fx.js?v=24";
+import { Radio } from "./radio.js?v=24";
+import { play, unlock } from "./sound.js?v=24";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -230,20 +230,17 @@ video.addEventListener("pause", () => pauseKey.classList.add("paused"));
 // playback rate, big jumps (loop, replay, seek) by seeking.
 const real = $("#real");
 const split = $("#split");
-const origKey = $("#key-orig"); // phones: one tap shows the whole original video instead of dragging the slider
 let splitPos = 0;
 function setSplit(f) {
   splitPos = Math.min(1, Math.max(0, f));
   frame.style.setProperty("--split", splitPos * 100 + "%");
   frame.style.setProperty("--split-line", splitPos > 0 && splitPos < 1 ? 1 : 0);
   split.setAttribute("aria-valuenow", Math.round(splitPos * 100));
-  origKey.classList.toggle("on", splitPos > 0.5);
 }
 function loadReal(key) {
   const has = !!key && REAL.has(key);
   split.hidden = !has;
   $("#slide-hint").hidden = !has;
-  origKey.hidden = !has;
   setSplit(0);
   if (has) {
     real.src = `clips/real/${key}.mp4`;
@@ -290,8 +287,6 @@ split.addEventListener("pointermove", (e) => {
   setSplit((e.clientX - r.left) / r.width);
 });
 for (const type of ["pointerup", "pointercancel"]) split.addEventListener(type, () => split.classList.remove("dragging"));
-origKey.addEventListener("click", () => setSplit(splitPos > 0.5 ? 0 : 1));
-sfxOn(origKey, "select");
 function cycleSplit() {
   if (split.hidden) return;
   setSplit(splitPos < 0.25 ? 0.5 : splitPos < 0.75 ? 1 : 0);
