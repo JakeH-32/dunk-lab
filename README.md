@@ -27,6 +27,18 @@ corner. This is the browser version of my Unreal Engine 5 class project. It runs
   render targets.
 - **Radio:** five stations with presets, ‹ › tuning, volume (drag the left knob, use − / +, or scroll),
   power, a static burst between stations, and auto-advance to the next song.
+- **Live court (WebGL2, `js/court.js`):** the background is the court scene rendered in real time, a
+  port of the offline renderer `Tools/Brand/court_render.py` in the Unreal project. It uses the same
+  pinhole camera, metre units and shading: hardwood and court lines are box-filtered over each
+  sample's exact footprint on the floor plane, with GGX lamp streaks, Fresnel and a light pool. The
+  hoop is 3D line art drawn with the painter's algorithm. The scene is static and renders only on
+  resize or while the camera moves. `assets/brand/kit/background.jpg` is the fallback when there is
+  no GPU, WebGL2 or context.
+  - `window.__court`: `getCamera()`, `setCamera({ pos: [x, y, z], yaw, pitch, f | fovY })`,
+    `animateTo(cam, ms, ease, { arc, via })` (returns a Promise) and `bench(n)` (ms per frame).
+    `f` is in px for a 2560 px wide frame; the default is `pos [-9.78, 1.73, 9.35], yaw 18.55, pitch 3.85, f 1781`.
+  - `?court=cam`: logs the camera after every change. Arrows turn, I/K/J/L/U/O move, `[` `]` zoom,
+    0 resets, and Shift moves 5x. `?court=off` shows the static image.
 
 Plain HTML, CSS and JavaScript with no build step. Audio runs through the Web Audio API, so volume
 also works on iPhone. Sound starts on your first tap or click, because browsers block autoplay.

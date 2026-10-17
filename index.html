@@ -29,9 +29,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto:wght@700&family=Saira:ital,wdth,wght@0,125,500;0,125,600;1,125,600;1,125,700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <link rel="preload" as="image" href="assets/brand/logo_metal.png">
-  <link rel="stylesheet" href="css/style.css?v=29">
+  <link rel="stylesheet" href="css/style.css?v=30">
+  <!-- Live WebGL2 court behind the page (js/court.js). Decided before CSS paints, so browsers that will render it
+       don't download the static background.jpg; main.js removes the class again if the court can't start. -->
+  <script>if (window.WebGL2RenderingContext && !/[?&]court=off(&|$)/.test(location.search)) document.documentElement.classList.add("court");</script>
 </head>
 <body>
+  <canvas id="court" aria-hidden="true"></canvas>
   <main id="app">
     <section id="menu">
       <header class="title">
@@ -76,6 +80,6 @@
 
   <div id="radio-dock"></div>
 
-  <script type="module" src="js/main.js?v=29"></script>
+  <script type="module" src="js/main.js?v=30"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
 import { CLIPS, REAL } from "./clips.js?v=29";
+import { Court } from "./court.js?v=30";
 import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=29";
 import { LineFX } from "./fx.js?v=29";
 import { Radio } from "./radio.js?v=29";
@@ -352,3 +353,66 @@ for (const t of TAKEOFFS) {
 showTakeoffs();
 placeTips();
 document.fonts.ready.then(placeTips);
+
+// ---- live court background (js/court.js) ----
+// Rendered once, and again only on resize or while the camera animates. Debug / test hooks:
+//   window.__court             the Court: __court.getCamera(), .setCamera({pos, yaw, pitch, f | fovY}),
+//                              .animateTo(cam, ms, ease, {arc, via}) -> Promise, .bench(n) -> ms per still frame
+//   ?court=cam                 logs the camera after every change and flies it with the keyboard: arrows turn,
+//                              I/K forward/back, J/L left/right, U/O down/up, [ ] zoom, 0 reset (Shift = 5x)
+//   ?court=off                 the static background.jpg instead
+function startCourt() {
+  const root = document.documentElement;
+  if (!root.classList.contains("court")) return;
+  const canvas = $("#court");
+  let court;
+  try {
+    court = new Court(canvas);
+  } catch (e) {
+    console.warn("Live court unavailable, using the static background:", e);
+    root.classList.remove("court");
+    return;
+  }
+  window.__court = court;
+  court.ready.catch((e) => {
+    console.warn("Live court failed to start, using the static background:", e);
+    root.classList.remove("court");
+  });
+  court.onLost = () => root.classList.remove("court");
+  court.onRestored = () => root.classList.add("court");
+  const camDebug = new URLSearchParams(location.search).get("court") === "cam";
+  let logged = "";
+  court.onRender = () => {
+    canvas.classList.add("ready");
+    if (!camDebug || court.anim) return;
+    const c = court.getCamera();
+    const r = (v) => Math.round(v * 1000) / 1000;
+    const line = `__court.setCamera({ pos: [${c.pos.map(r).join(", ")}], yaw: ${r(c.yaw)}, pitch: ${r(c.pitch)}, f: ${r(c.f)} })`;
+    if (line !== logged) console.log((logged = line));
+  };
+  if (camDebug) {
+    window.addEventListener("keydown", (e) => {
+      const c = court.getCamera();
+      const s = e.shiftKey ? 5 : 1;
+      const yaw = c.yaw * Math.PI / 180;
+      const fwd = [Math.sin(yaw), 0, -Math.cos(yaw)];
+      const right = [Math.cos(yaw), 0, Math.sin(yaw)];
+      const move = (v, m) => c.pos.forEach((_, i) => (c.pos[i] += v[i] * m * 0.25 * s));
+      const keys = {
+        ArrowLeft: () => (c.yaw -= s), ArrowRight: () => (c.yaw += s),
+        ArrowUp: () => (c.pitch -= 0.5 * s), ArrowDown: () => (c.pitch += 0.5 * s),
+        KeyI: () => move(fwd, 1), KeyK: () => move(fwd, -1), KeyJ: () => move(right, -1), KeyL: () => move(right, 1),
+        KeyU: () => move([0, 1, 0], -1), KeyO: () => move([0, 1, 0], 1),
+        BracketLeft: () => (c.f /= 1.05 ** s), BracketRight: () => (c.f *= 1.05 ** s),
+        Digit0: () => Object.assign(c, { pos: [-9.78, 1.73, 9.35], yaw: 18.55, pitch: 3.85, f: 1781 }),
+      };
+      if (!keys[e.code]) return;
+      e.preventDefault();
+      e.stopPropagation();
+      keys[e.code]();
+      delete c.fovY;
+      court.setCamera(c);
+    }, { capture: true });
+  }
+}
+startCourt();
