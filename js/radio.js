@@ -1,8 +1,8 @@
 // Car-stereo radio, ported from WBP_Radio. Controls sit on the faceplate recesses measured in
 // assets/radio/layout.json (1600x640 art space), placed in percent so the radio scales freely.
 
-import { STATIONS } from "./data.js?v=18";
-import { music, play, setMusicLevel, unlocked } from "./sound.js?v=18";
+import { STATIONS } from "./data.js?v=21";
+import { music, play, setMusicLevel, unlocked } from "./sound.js?v=21";
 
 const W = 1600;
 const H = 640;

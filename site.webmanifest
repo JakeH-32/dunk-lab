@@ -1,0 +1,14 @@
+{
+  "name": "Dunk Lab",
+  "short_name": "Dunk Lab",
+  "description": "Pick a takeoff and a dunk, then watch it as line art redrawn live on the GPU.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0C0E11",
+  "theme_color": "#0C0E11",
+  "icons": [
+    { "src": "assets/brand/icon_192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/brand/icon_512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

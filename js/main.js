@@ -1,10 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS } from "./clips.js?v=18";
-import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=18";
-import { LineFX } from "./fx.js?v=18";
-import { Radio } from "./radio.js?v=18";
-import { play, unlock } from "./sound.js?v=18";
+import { CLIPS, REAL } from "./clips.js?v=21";
+import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=21";
+import { LineFX } from "./fx.js?v=21";
+import { Radio } from "./radio.js?v=21";
+import { play, unlock } from "./sound.js?v=21";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -181,6 +181,7 @@ function playDunk(d, t) {
   status.hidden = true;
   frame.classList.remove("ready");
   video.src = `clips/${d.key}${t.key}.mp4`;
+  loadReal(`${d.key}${t.key}`);
   setSlowMo(false);
   video.play().catch(() => {});
   menu.hidden = true;
@@ -194,6 +195,7 @@ function backToMenu() {
   video.pause();
   video.removeAttribute("src");
   video.load();
+  loadReal(null);
   player.hidden = true;
   menu.hidden = false;
   document.body.classList.remove("playing");
@@ -216,13 +218,81 @@ video.addEventListener("error", () => {
 video.addEventListener("play", () => pauseKey.classList.remove("paused"));
 video.addEventListener("pause", () => pauseKey.classList.add("paused"));
 
+// ---- real footage: a second video, synced to the line-art clip, shown left of a draggable split ----
+// The real clips are retimed frame by frame to the line art offline (Unreal project, Tools/FXLab/real), so both
+// play from the same timestamp. The real video follows the line-art clock: small drift is absorbed by nudging its
+// playback rate, big jumps (loop, replay, seek) by seeking.
+const real = $("#real");
+const split = $("#split");
+let splitPos = 0;
+function setSplit(f) {
+  splitPos = Math.min(1, Math.max(0, f));
+  frame.style.setProperty("--split", splitPos * 100 + "%");
+  frame.style.setProperty("--split-line", splitPos > 0 && splitPos < 1 ? 1 : 0);
+  split.setAttribute("aria-valuenow", Math.round(splitPos * 100));
+}
+function loadReal(key) {
+  const has = !!key && REAL.has(key);
+  split.hidden = !has;
+  $("#slide-hint").hidden = !has;
+  setSplit(0);
+  if (has) {
+    real.src = `clips/real/${key}.mp4`;
+    real.playbackRate = video.playbackRate;
+    if (!video.paused) real.play().catch(() => {});
+  } else {
+    real.pause();
+    real.removeAttribute("src");
+    real.load();
+  }
+}
+function syncReal() {
+  if (!real.getAttribute("src") || real.readyState < 2) return;
+  const base = video.playbackRate;
+  if (video.paused) {
+    if (!real.paused) real.pause();
+    if (Math.abs(real.currentTime - video.currentTime) > 0.01) real.currentTime = video.currentTime;
+    return;
+  }
+  if (real.paused) real.play().catch(() => {});
+  let d = real.currentTime - video.currentTime;
+  const dur = video.duration || 0;
+  if (dur && Math.abs(d) > dur / 2) d -= Math.sign(d) * dur; // one of them has already looped
+  if (Math.abs(d) > 0.25) {
+    real.currentTime = video.currentTime;
+    real.playbackRate = base;
+  } else {
+    real.playbackRate = base * (1 - Math.max(-0.2, Math.min(0.2, d * 2)));
+  }
+}
+(function syncLoop() {
+  if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(() => { syncReal(); syncLoop(); });
+  else setTimeout(() => { syncReal(); syncLoop(); }, 50);
+})();
+for (const type of ["pause", "play", "seeked", "ratechange"]) video.addEventListener(type, syncReal);
+split.addEventListener("pointerdown", (e) => {
+  split.setPointerCapture(e.pointerId);
+  split.classList.add("dragging");
+  e.preventDefault();
+});
+split.addEventListener("pointermove", (e) => {
+  if (!split.hasPointerCapture(e.pointerId)) return;
+  const r = split.parentElement.getBoundingClientRect();
+  setSplit((e.clientX - r.left) / r.width);
+});
+for (const type of ["pointerup", "pointercancel"]) split.addEventListener(type, () => split.classList.remove("dragging"));
+function cycleSplit() {
+  if (split.hidden) return;
+  setSplit(splitPos < 0.25 ? 0.5 : splitPos < 0.75 ? 1 : 0);
+}
+
 $("#key-replay").addEventListener("click", () => {
   video.currentTime = 0;
   video.play().catch(() => {});
 });
 const togglePause = () => (video.paused ? video.play().catch(() => {}) : video.pause());
 pauseKey.addEventListener("click", togglePause);
-// Keyboard shortcuts, the same as the Unreal build. Player: Space pause/play, R replay, V view, S slow-mo,
+// Keyboard shortcuts, the same as the Unreal build. Player: Space pause/play, R replay, V view, S slow-mo, C real footage,
 // Backspace/Esc back. Menu: 1-3 pick a takeoff, 1-6 pick a dunk, Backspace/Esc back to the takeoffs.
 // Handled keys are stopped before they reach a focused button, which would otherwise also be pressed.
 const PLAYER_KEYS = {
@@ -230,6 +300,7 @@ const PLAYER_KEYS = {
   KeyR: ["select", () => $("#key-replay").click()],
   KeyV: ["select", () => fx && $("#key-view").click()],
   KeyS: ["select", () => $("#key-slow").click()],
+  KeyC: ["select", () => cycleSplit()],
   Backspace: ["back", () => backToMenu()],
   Escape: ["back", () => backToMenu()],
 };

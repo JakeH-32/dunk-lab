@@ -5,18 +5,35 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Dunk Lab</title>
   <meta name="description" content="Dunk Lab: pick a takeoff and a dunk, watch it as line art, with a retro car radio.">
-  <meta name="theme-color" content="#0b0d10">
-  <link rel="icon" href="assets/ui/icon_play.png">
+  <meta name="theme-color" content="#0C0E11">
+  <link rel="icon" href="assets/brand/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/icon_32.png">
+  <link rel="apple-touch-icon" href="assets/brand/icon_180.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Dunk Lab">
+  <meta property="og:title" content="Dunk Lab">
+  <meta property="og:description" content="Pick a takeoff and a dunk, then watch it as line art redrawn live on the GPU.">
+  <meta property="og:url" content="https://jakeh-32.github.io/dunk-lab/">
+  <meta property="og:image" content="https://jakeh-32.github.io/dunk-lab/assets/brand/og.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Dunk Lab logo in champagne gold on a dark court">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Dunk Lab">
+  <meta name="twitter:description" content="Pick a takeoff and a dunk, then watch it as line art redrawn live on the GPU.">
+  <meta name="twitter:image" content="https://jakeh-32.github.io/dunk-lab/assets/brand/og.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,400;0,700;1,700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=18">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto:wght@700&family=Saira:ital,wdth,wght@0,125,500;0,125,600;1,125,600;1,125,700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="preload" as="image" href="assets/brand/logo_metal.png">
+  <link rel="stylesheet" href="css/style.css?v=21">
 </head>
 <body>
   <main id="app">
     <section id="menu">
       <header class="title">
-        <div class="plate"><h1>DUNK LAB</h1></div>
+        <h1 class="logo"><img src="assets/brand/logo_metal.png" width="1202" height="147" alt="Dunk Lab"><i class="sweep" aria-hidden="true"></i></h1>
         <div class="divider"></div>
         <p id="subtitle"></p>
       </header>
@@ -27,10 +44,13 @@
     <section id="player" hidden>
       <p id="caption"></p>
       <div class="stage">
+        <p id="slide-hint" hidden>Use the slider to<br>view the original &rsaquo;</p>
         <div id="frame">
           <div class="screen">
             <video id="video" muted loop playsinline autoplay preload="auto"></video>
             <canvas id="fx" hidden></canvas>
+            <video id="real" muted loop playsinline preload="auto" aria-label="Real footage"></video>
+            <div id="split" hidden role="slider" aria-label="Compare with the real footage"><i></i></div>
           </div>
           <div class="bezel"></div>
           <p id="status" hidden></p>
@@ -53,6 +73,6 @@
 
   <div id="radio-dock"></div>
 
-  <script type="module" src="js/main.js?v=18"></script>
+  <script type="module" src="js/main.js?v=21"></script>
 </body>
 </html>
