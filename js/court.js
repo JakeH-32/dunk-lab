@@ -758,6 +758,8 @@ const EASES = {
   inOutCubic: (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2),
   inOutQuint: (t) => (t < 0.5 ? 16 * t ** 5 : 1 - (-2 * t + 2) ** 5 / 2),
   outCubic: (t) => 1 - (1 - t) ** 3,
+  // smootherstep: zero velocity AND zero acceleration at both ends (no lurch when the flight starts or lands)
+  smoother: (t) => t * t * t * (t * (6 * t - 15) + 10),
 };
 
 // Camera: pos, yaw, pitch, roll (deg) and intrinsics, either

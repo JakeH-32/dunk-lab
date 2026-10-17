@@ -65,7 +65,10 @@ html.court body::before { background-image: none; }
 #menu, #player { transition: opacity 0.5s ease; }
 /* 0.001, not 0: the browser rasterises the layers right away (while the camera is still slow), not mid-flight */
 #menu.fading, #player.fading { opacity: 0.001; pointer-events: none; }
-html.court #frame:not(.landed) .screen { visibility: hidden; }
+/* the video fades in over the court once the camera has landed (the court behind shows the same view, so it blends)
+   and disappears at once when leaving */
+html.court #frame .screen { transition: opacity 0.5s ease-out; }
+html.court #frame:not(.landed) .screen { opacity: 0; transition: none; }
 @media (prefers-reduced-motion: reduce) {
   #menu, #player { transition: none; }
 }

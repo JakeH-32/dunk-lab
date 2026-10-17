@@ -1,7 +1,7 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
 import { CLIPS, REAL } from "./clips.js?v=29";
-import { Court, DEFAULT_CAMERA } from "./court.js?v=30";
+import { Court, DEFAULT_CAMERA } from "./court.js?v=31";
 import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=29";
 import { LineFX } from "./fx.js?v=29";
 import { Radio } from "./radio.js?v=29";
@@ -192,7 +192,8 @@ function showDunks(t) {
 // was filmed with (assets/brand/clip_cameras.json, Tools/Brand/clip_cameras.py in the Unreal project), framed so
 // the video's box shows exactly that camera's 720x1280 picture. The video appears when the camera lands, so the
 // clip's hoop sits on the 3D hoop and the court around the bezel continues the shot. Back to Menu flies back.
-const SWOOP_MS = 1200;
+const SWOOP_MS = 1700; // long enough that the turn and zoom read as a glide, not a lurch
+const SWOOP_EASE = "smoother";
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let flight = 0; // id of the latest transition; older ones stop when they see it changed
 
@@ -254,7 +255,7 @@ function playDunk(d, t) {
   window.scrollTo(0, 0);
   courtState("flying");
   setTimeout(() => my === flight && player.classList.remove("fading"), ms * 0.45); // fades in as it lands
-  court.animateTo(cam, ms, "inOutCubic").then((done) => {
+  court.animateTo(cam, ms, SWOOP_EASE).then((done) => {
     if (!done || my !== flight) return;
     unpin(menu);
     menu.hidden = true;
@@ -303,7 +304,7 @@ function backToMenu() {
   };
   if (ms) setTimeout(showMenu, ms * 0.35);
   else showMenu();
-  court.animateTo(DEFAULT_CAMERA, ms, "inOutCubic").then((done) => done && my === flight && courtState("menu"));
+  court.animateTo(DEFAULT_CAMERA, ms, SWOOP_EASE).then((done) => done && my === flight && courtState("menu"));
 }
 
 // Reveal the video once it has a real frame (avoids a flash of the wrong size).
@@ -473,7 +474,7 @@ function startCourt() {
     root.classList.remove("court");
     court = null;
   });
-  fetch("assets/brand/clip_cameras.json?v=30")
+  fetch("assets/brand/clip_cameras.json?v=31")
     .then((r) => (r.ok ? r.json() : null))
     .then((j) => (clipCams = j))
     .catch(() => {}); // no cameras: dunks open with a cut, as without the court
