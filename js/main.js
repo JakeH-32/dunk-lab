@@ -1,10 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS, REAL } from "./clips.js?v=22";
-import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=22";
-import { LineFX } from "./fx.js?v=22";
-import { Radio } from "./radio.js?v=22";
-import { play, unlock } from "./sound.js?v=22";
+import { CLIPS, REAL } from "./clips.js?v=23";
+import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=23";
+import { LineFX } from "./fx.js?v=23";
+import { Radio } from "./radio.js?v=23";
+import { play, unlock } from "./sound.js?v=23";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -64,6 +64,12 @@ if (!fx) {
   $("#key-view").hidden = true;
   $("#explain").hidden = true;
 }
+// Phone player: the video fills the screen, so the explanation below isn't visible until you scroll. A small
+// "DETAILS BELOW" line above the keys says so (tap scrolls there); it fades once the page has been scrolled.
+const detailsHint = $("#details-hint");
+detailsHint.hidden = !fx;
+detailsHint.addEventListener("click", () => $("#explain").scrollIntoView({ behavior: "smooth", block: "center" }));
+addEventListener("scroll", () => detailsHint.classList.toggle("gone", scrollY > 40), { passive: true });
 $("#key-view").addEventListener("click", () => setMode((mode + 1) % MODES.length));
 sfxOn($("#key-view"), "select");
 $("#key-slow").addEventListener("click", () => setSlowMo(!slowMo));

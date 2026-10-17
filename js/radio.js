@@ -1,8 +1,8 @@
 // Car-stereo radio, ported from WBP_Radio. Controls sit on the faceplate recesses measured in
 // assets/radio/layout.json (1600x640 art space), placed in percent so the radio scales freely.
 
-import { STATIONS } from "./data.js?v=22";
-import { music, play, setMusicLevel, unlocked } from "./sound.js?v=22";
+import { STATIONS } from "./data.js?v=23";
+import { music, play, setMusicLevel, unlocked } from "./sound.js?v=23";
 
 const W = 1600;
 const H = 640;
@@ -55,7 +55,7 @@ export class Radio {
 
     const r = (this.root = el("div", "radio", dock));
     const face = el("img", "radio-face", r);
-    face.src = "assets/radio/faceplate.webp?v=22";
+    face.src = "assets/radio/faceplate.webp?v=23";
     face.alt = "";
     face.draggable = false;
 
@@ -67,7 +67,7 @@ export class Radio {
     this.stationText = el("div", "radio-station", disp);
     const clip = el("div", "radio-track", disp);
     this.trackText = el("span", "", clip);
-    el("img", "glass", r, L.display).src = "assets/radio/display_glass.png?v=22";
+    el("img", "glass", r, L.display).src = "assets/radio/display_glass.png?v=23";
 
     // Dial: ticks + labels 88-108 and a needle.
     const dial = el("div", "radio-dial", r, L.dial);
@@ -81,7 +81,7 @@ export class Radio {
       }
     }
     this.needle = el("i", "needle", dial);
-    el("img", "glass", r, L.dial).src = "assets/radio/dial_glass.png?v=22";
+    el("img", "glass", r, L.dial).src = "assets/radio/dial_glass.png?v=23";
 
     // Knobs: the art is rotation-safe, so only the pointer rotates.
     this.volKnob = this.knob(r, L.knobL, "Volume: drag up or down");
@@ -120,7 +120,7 @@ export class Radio {
     const k = el("div", "knob", parent, rect);
     k.title = title;
     const img = el("img", "", k);
-    img.src = "assets/radio/knob.png?v=22";
+    img.src = "assets/radio/knob.png?v=23";
     img.draggable = false;
     const ptr = el("i", "pointer", k);
     return { el: k, ptr };

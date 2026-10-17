@@ -203,6 +203,7 @@ button { font-family: inherit; }
 .i-slow { -webkit-mask-image: url(../assets/ui/icon_play.png); mask-image: url(../assets/ui/icon_play.png); transform: scaleX(0.75); }
 #key-slow.on, #key-orig.on { color: var(--gold-light); }
 #key-slow.on .icon, #key-orig.on .icon { background: var(--gold-light); }
+#details-hint { display: none; } /* phone player only */
 /* ORIGINAL key: phones only (desktop has the slider); shown by loadReal for clips with real footage */
 #key-orig, #key-orig[hidden] { display: none; }
 #explain em { display: block; margin-top: 8px; color: var(--gold-light); font: normal 500 13px/1.45 Inter, sans-serif; }
@@ -549,6 +550,31 @@ button { font-family: inherit; }
   body.playing #key-orig:not([hidden]) { display: inline-flex; }
   body.playing .controls:has(#key-orig:not([hidden])) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   body.playing #key-orig .icon { display: none; }
+  body.playing #details-hint:not([hidden]) {
+    display: flex;
+    grid-column: 1 / -1;
+    justify-self: center;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 4px;
+    padding: 4px 10px;
+    border: 0;
+    background: none;
+    color: var(--gold-light);
+    font: 600 9px/1 Saira, sans-serif;
+    font-stretch: 125%;
+    letter-spacing: 0.18em;
+    opacity: 0.85;
+    transition: opacity 0.3s;
+  }
+  body.playing #details-hint i { /* small down chevron */
+    width: 6px;
+    height: 6px;
+    border: solid currentColor;
+    border-width: 0 1.5px 1.5px 0;
+    transform: translateY(-2px) rotate(45deg);
+  }
+  body.playing #details-hint.gone { opacity: 0; pointer-events: none; }
   body.playing #explain { grid-area: 2 / 1; justify-self: center; margin-top: 14px; }
 }
 
