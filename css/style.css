@@ -72,6 +72,34 @@ html.court #frame:not(.landed) .screen { opacity: 0; transition: none; }
 @media (prefers-reduced-motion: reduce) {
   #menu, #player { transition: none; }
 }
+/* 3D COURT view (js/cutout.js): the cut-out dunker is drawn on #cutout, a transparent canvas over the court, in the
+   video's place. The bezel fades away and the video area is see-through, so the scene is seamless. #video (the packed
+   clip: line art | real | matte) keeps playing underneath as the clock, invisible. */
+#cutout {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100lvh;
+  z-index: -1;
+  display: none;
+  opacity: 0;
+  pointer-events: none;
+}
+html.court #cutout { display: block; }
+html.court #cutout.on { opacity: 1; transition: opacity 0.5s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  html.court #cutout.on, #frame .bezel { transition: none; }
+}
+#frame .bezel { transition: opacity 0.4s ease; }
+#player.view3d #frame .bezel { opacity: 0; }
+#player.view3d .screen { border-radius: 0; }
+#player.view3d #frame #video { opacity: 0; transition: none; }
+#player.view3d #fx, #player.view3d #real, #player.view3d #split, #player.view3d #slide-hint { visibility: hidden; }
+/* packed clip: the box shows the left (line-art) panel only */
+#frame #video.packed { object-fit: cover; object-position: 0 50%; }
 
 button { font-family: inherit; }
 /* Saira at width 125 = Saira Expanded */

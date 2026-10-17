@@ -6,8 +6,10 @@
 // is how far it moved (normal flow): Speed colours lines by it, Trails accumulate moving lines in a fading
 // feedback buffer, and slow motion builds in-between fields by sliding seeds part of the way and re-flooding.
 // Fields store texel coordinates in 1/32 px fixed point packed into RGBA8 (2 bytes per axis), because rendering
-// to float textures isn't reliable on phones; 65535 (all bytes 255) means "no line". The video is uploaded as
-// sRGB so the maths runs in linear light, like Unreal.
+// to float textures isn't reliable on phones; 65535 (all bytes 255) means "no line". The maths runs in linear light,
+// like Unreal: the video is uploaded as plain RGBA8 and decoded from sRGB on every texelFetch (vid()), which is exact
+// for unfiltered fetches. (Uploading video into an SRGB8_ALPHA8 texture takes a slow path in Chrome: ~10 ms per
+// 720x1280 frame, ~29 ms for the packed 2192x1280 clip, against ~0.2 ms for RGBA8.)
 //
 // Phones show the field at about 1:1 (a 720 px clip across a 360-430 pt screen at 2x), while desktop windows
 // shrink it to about half, which hides single-pixel faults. So the seed pass drops the faint maxima on a line's
@@ -24,6 +26,7 @@ precision highp float;
 precision highp int;
 precision highp sampler2D; // samplers default to lowp in GLSL ES, and phone GPUs honour it
 out vec4 o;
+vec3 vid(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c)); } // sRGB -> linear
 const float FIX = 32.0;    // field coordinates are stored in 1/32 px
 const float NONE = 2000.0; // decoded coordinates above this mean "no line" (65535 / 32 = 2048)
 vec4 enc(vec2 s) { s = floor(s * FIX + 0.5); return vec4(floor(s.x / 256.0), mod(s.x, 256.0), floor(s.y / 256.0), mod(s.y, 256.0)) / 255.0; }
@@ -48,7 +51,7 @@ void ridgeFit(float v[9], out vec2 n, out float off, out float kc) {
 const SEED = COMMON + `
 uniform sampler2D uVideo;
 uniform vec2 uRes;
-float lum(ivec2 q) { vec3 t = texelFetch(uVideo, clamp(q, ivec2(0), ivec2(uRes) - 1), 0).rgb; return sqrt(max(max(t.r, t.g), t.b)); }
+float lum(ivec2 q) { vec3 t = vid(texelFetch(uVideo, clamp(q, ivec2(0), ivec2(uRes) - 1), 0).rgb); return sqrt(max(max(t.r, t.g), t.b)); }
 void main() {
   const float kContrast = 0.07;
   const float kSlope = 0.75;
@@ -204,7 +207,7 @@ vec3 shade() {
     float v[9];
     for (int j = 0; j < 3; j++)
     for (int i = 0; i < 3; i++) {
-      vec3 c = texelFetch(uVideo, clamp(sp + ivec2(i - 1, j - 1), ivec2(0), hi), 0).rgb;
+      vec3 c = vid(texelFetch(uVideo, clamp(sp + ivec2(i - 1, j - 1), ivec2(0), hi), 0).rgb);
       v[j * 3 + i] = sqrt(max(c.r, max(c.g, c.b)));
     }
     vec2 n; float off, kc;
@@ -534,15 +537,18 @@ export class LineFX {
   buildFrame() {
     const gl = this.gl;
     const v = this.video;
-    const scale = Math.min(1, MAX_SIDE / Math.max(v.videoWidth, v.videoHeight));
-    const w = Math.max(1, Math.round(v.videoWidth * scale));
+    // packed clips (clips/cutout: line art | real | matte in one video) set data-panel-w: only the left panel is
+    // line art, and texelFetch below never reaches past it
+    const vw = +v.dataset.panelW || v.videoWidth;
+    const scale = Math.min(1, MAX_SIDE / Math.max(vw, v.videoHeight));
+    const w = Math.max(1, Math.round(vw * scale));
     const h = Math.max(1, Math.round(v.videoHeight * scale));
     this.ensureTargets(w, h);
     gl.viewport(0, 0, w, h);
 
     gl.bindTexture(gl.TEXTURE_2D, this.videoTex);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.SRGB8_ALPHA8, gl.RGBA, gl.UNSIGNED_BYTE, v);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, v); // sRGB-encoded: decoded by vid()
 
     [this.t.prev, this.t.cur] = [this.t.cur, this.t.prev];
     this.pass(this.progSeed, this.t.a, { uVideo: this.videoTex }, { uRes: [w, h] });

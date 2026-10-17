@@ -1,9 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS, REAL } from "./clips.js?v=29";
+import { CLIPS, CUTOUT, PACKING, REAL } from "./clips.js?v=30";
 import { Court, DEFAULT_CAMERA } from "./court.js?v=31";
+import { CutoutLayer } from "./cutout.js?v=32";
 import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=29";
-import { LineFX } from "./fx.js?v=29";
+import { LineFX } from "./fx.js?v=30";
 import { Radio } from "./radio.js?v=29";
 import { play, unlock } from "./sound.js?v=29";
 
@@ -24,8 +25,11 @@ const radio = new Radio(dock);
 let court = null; // live WebGL court (startCourt, at the bottom); null when the static background is used
 let clipCams = null; // per-clip phone cameras (assets/brand/clip_cameras.json)
 
-// VIEW modes. 0 shows the clip itself; 1-2 run the GPU line-art pipeline (js/fx.js).
+// VIEW modes. 0 (3D) composites the cut-out dunker into the live court (js/cutout.js; only with the live court and a
+// cutout for the clip, otherwise it is skipped); 1 shows the line-art clip itself; 2+ run the GPU line-art pipeline
+// (js/fx.js, whose mode is ours minus one).
 const MODES = [
+  { label: "3D", title: "3D COURT", text: "You, cut out of the real footage with a segmentation model and composited into the live 3D court from the exact camera that filmed you." },
   { label: "LINE ART", title: "LINE ART", text: "The dunk traced as line art. Press VIEW to see how the GPU reads the lines." },
   { label: "DISTANCE", title: "DISTANCE VIEW", text: "A distance field: every pixel knows how far it is from the nearest line, rebuilt each frame on the GPU with jump flooding. Rings are 8 px apart." },
   { label: "RE-STROKE", title: "RE-STROKE VIEW", text: "The lines redrawn from the distance field instead of copied from the video, so every stroke gets the same clean width and glow." },
@@ -35,25 +39,38 @@ const MODES = [
   { label: "SPEED", title: "SPEED VIEW", text: "Lines coloured by how fast they move, measured frame to frame: blue is still, cyan and white are faster, orange is fastest." },
 ];
 const SLOWMO_NOTE = "Slow-mo: the GPU makes the in-between frames itself, sliding each line toward its next position.";
-let mode = 0;
+let mode = 1;
 let fx = null;
 try {
   if (LineFX.supported()) fx = new LineFX($("#fx"), $("#video"));
 } catch (e) {
   console.warn("Line-art views unavailable:", e);
 }
+let cutoutLayer = null; // js/cutout.js, with the live court (startCourt)
+let feetData = null; // clips/cutout/feet.json
 let slowMo = false;
 function updateExplain() {
   $("#explain-title").textContent = MODES[mode].title;
   $("#explain-text").textContent = MODES[mode].text;
-  $("#explain-note").textContent = slowMo && mode > 0 ? SLOWMO_NOTE : "";
-  $("#explain-note").hidden = !(slowMo && mode > 0);
+  $("#explain-note").textContent = slowMo && mode > 1 ? SLOWMO_NOTE : "";
+  $("#explain-note").hidden = !(slowMo && mode > 1);
 }
+// the 3D view needs the live court, the cutout layer and the packed clip
+const can3D = () => !!(cutoutLayer && court && document.documentElement.classList.contains("court") && $("#video").classList.contains("packed"));
 function setMode(m) {
+  if (m === 0 && !can3D()) m = 1;
   mode = m;
   $("#view-label").innerHTML = `<span class="vp">VIEW: </span>${MODES[m].label}`;
-  if (fx) fx.setMode(m);
+  if (fx) fx.setMode(Math.max(0, m - 1));
   updateExplain();
+  update3D();
+}
+// 3D view on: the bezel, the video and the real-footage slider make way, and the cutout layer draws over the court
+// (once the camera has landed in the clip's camera)
+function update3D() {
+  const on = mode === 0;
+  $("#player").classList.toggle("view3d", on);
+  if (cutoutLayer) cutoutLayer.setActive(on && document.body.dataset.court === "landed");
 }
 function setSlowMo(on) {
   slowMo = on;
@@ -76,11 +93,11 @@ addEventListener("scroll", () => detailsHint.classList.toggle("gone", scrollY > 
 // No page zoom on phones (it was easy to double-tap-zoom while pressing keys and get stuck zoomed in). The viewport meta
 // and touch-action handle most browsers; iOS Safari ignores user-scalable=no for pinches, so cancel its gesture events.
 for (const type of ["gesturestart", "gesturechange"]) document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
-$("#key-view").addEventListener("click", () => setMode((mode + 1) % MODES.length));
+$("#key-view").addEventListener("click", () => setMode((mode + 1) % MODES.length || (can3D() ? 0 : 1)));
 sfxOn($("#key-view"), "select");
 $("#key-slow").addEventListener("click", () => setSlowMo(!slowMo));
 sfxOn($("#key-slow"), "select");
-setMode(0);
+setMode(1);
 
 // Keep page content clear of the radio when it is docked at the bottom (phone menu), via --dock-h.
 const phone = window.matchMedia("(max-width: 899px)");
@@ -224,10 +241,17 @@ function playDunk(d, t) {
   caption.textContent = `${d.label.toUpperCase()} — ${t.label.toUpperCase()}`;
   status.hidden = true;
   frame.classList.remove("ready");
-  video.src = `clips/${key}.mp4`;
+  const cam = clipCamera(key);
+  // with the live court and a cutout: the packed clip (line art | real | matte), so the 3D view is frame-locked to it
+  const packed = !!(cam && cutoutLayer && CUTOUT.has(key));
+  video.classList.toggle("packed", packed);
+  video.dataset.panelW = packed ? PACKING.w : "";
+  video.src = packed ? `clips/cutout/${key}.mp4` : `clips/${key}.mp4`;
+  if (packed) cutoutLayer.setClip(key, clipCams[key], feetData && feetData.clips[key]);
+  if (cutoutLayer) cutoutLayer.setActive(false);
   loadReal(key);
   setSlowMo(false);
-  const cam = clipCamera(key);
+  setMode(packed ? 0 : mode === 0 ? 1 : mode); // 3D is the default when it's there
   if (!cam) {
     // no live court (or no camera for this clip): straight cut, as before
     video.play().catch(() => {});
@@ -265,11 +289,13 @@ function playDunk(d, t) {
     courtState("landed");
     video.currentTime = 0;
     video.play().catch(() => {});
+    update3D();
   });
 }
 
 function backToMenu() {
   const my = ++flight;
+  if (cutoutLayer) cutoutLayer.setActive(false);
   video.pause();
   video.removeAttribute("src");
   video.load();
@@ -311,7 +337,14 @@ function backToMenu() {
 video.addEventListener("loadeddata", () => frame.classList.add("ready"));
 // The phone layout sizes the video box from the clip's aspect ratio (--ar).
 video.addEventListener("loadedmetadata", () => {
-  if (video.videoWidth && video.videoHeight) frame.style.setProperty("--ar", video.videoWidth / video.videoHeight);
+  const w = +video.dataset.panelW || video.videoWidth; // packed clips: one panel
+  if (w && video.videoHeight) frame.style.setProperty("--ar", w / video.videoHeight);
+});
+// a paused 3D view still follows seeks (replay while paused, loop)
+video.addEventListener("seeked", () => {
+  if (!cutoutLayer || !cutoutLayer.active) return;
+  cutoutLayer.mediaTime = null; // the frame is now the one at currentTime
+  cutoutLayer.draw(true);
 });
 video.addEventListener("error", () => {
   if (!video.getAttribute("src")) return;
@@ -478,12 +511,31 @@ function startCourt() {
     .then((r) => (r.ok ? r.json() : null))
     .then((j) => (clipCams = j))
     .catch(() => {}); // no cameras: dunks open with a cut, as without the court
-  court.onLost = () => root.classList.remove("court");
+  // the 3D view's layer: a second, light WebGL canvas over the court (js/cutout.js)
+  if (CUTOUT.size) {
+    try {
+      cutoutLayer = new CutoutLayer($("#cutout"), video, court, PACKING);
+      window.__cutout = cutoutLayer;
+      fetch("clips/cutout/feet.json?v=32")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => (feetData = j))
+        .catch(() => {}); // no foot track: no contact shadow
+    } catch (e) {
+      console.warn("3D view unavailable:", e);
+      cutoutLayer = null;
+    }
+  }
+  court.onLost = () => {
+    root.classList.remove("court");
+    if (mode === 0) setMode(1);
+  };
   court.onRestored = () => root.classList.add("court");
   const camDebug = new URLSearchParams(location.search).get("court") === "cam";
   let logged = "";
   court.onRender = () => {
     canvas.classList.add("ready");
+    // the 3D layer uses the same framing: redraw it when the court redraws (resize, scroll on phones)
+    if (cutoutLayer && cutoutLayer.active) cutoutLayer.draw();
     if (!camDebug || court.anim) return;
     const c = court.getCamera();
     const r = (v) => Math.round(v * 1000) / 1000;

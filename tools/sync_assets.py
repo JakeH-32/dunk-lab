@@ -5,6 +5,8 @@ Run again whenever clips, songs or art change in the Unreal project:
 
 - Clips:  <unreal>/Content/Movies/*.mp4                  -> clips/
 - Real footage, synced to the line art (Tools/FXLab/real/make_real.py): <unreal>/Content/Movies/Real/*.mp4 -> clips/real/
+- Cutouts (Tools/FXLab/cutout): <unreal>/Content/Movies/Cutout/*.mp4, packed with the line art into one video
+  -> clips/cutout/, plus the dunker's per-frame foot track clips/cutout/feet.json (needs ffmpeg and numpy/scipy)
 - Music:  <unreal>/Audio/*.mp3 and RadioStatic.wav       -> assets/audio/
 - Sounds: <unreal>/Audio/UI/*.wav                        -> assets/audio/ui/
 - Art:    ChatGPT's PNGs in <unreal>/Inbox               -> assets/ui/ (icons), assets/radio/
@@ -59,9 +61,102 @@ real_dir = os.path.join(UNREAL, "Content/Movies/Real")
 real = sorted(f[:-4] for f in os.listdir(real_dir) if f.lower().endswith(".mp4")) if os.path.isdir(real_dir) else []
 for c in real:
     copy(os.path.join(real_dir, c + ".mp4"), "clips", "real", c + ".mp4")
+
+
+# ---- Cutouts (Tools/FXLab/cutout): the dunker + ball matted out of the real footage, for the 3D COURT view ----
+# <unreal>/Content/Movies/Cutout/<Clip>.mp4 is 1440x1280 (real | matte). For the web it is packed together with the
+# line-art clip into ONE video, clips/cutout/<Clip>.mp4, 2192x1280:
+#     x 0-719 line art | 16 px black | x 736-1455 real footage | 16 px black | x 1472-2191 matte
+# so a single decoder drives the line-art views and the 3D composite: they can never drift apart, and slow motion,
+# pause and replay apply to both. The black gaps keep compression and texture filtering from bleeding between
+# panels (720 and 736 are multiples of 16, so no macroblock straddles a seam). The website reads the geometry from
+# PACKING in js/clips.js.
+# clips/cutout/feet.json: per frame, where the dunker's feet are in the clip (image px), for the contact shadow:
+# [x_left, x_right, y_bottom, y_top, cut] of the largest matte component's lowest 3% (cut = 1 when the body runs off
+# the bottom of the frame), or null for an empty matte.
+PACK = {"w": 720, "h": 1280, "gap": 16, "fps": 30}
+PACK["line_x"], PACK["real_x"] = 0, PACK["w"] + PACK["gap"]
+PACK["matte_x"] = 2 * (PACK["w"] + PACK["gap"])
+PACK["width"] = 3 * PACK["w"] + 2 * PACK["gap"]
+
+
+def ffmpeg_exe():
+    import glob
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except ImportError:
+        pass
+    # the Unreal project's Python tools ship one (imageio-ffmpeg in their venvs)
+    hits = sorted(glob.glob(os.path.join(UNREAL, "Tools", "**", ".venv", "Lib", "site-packages", "imageio_ffmpeg", "binaries", "ffmpeg*"),
+                            recursive=True))
+    if hits:
+        return hits[0]
+    raise SystemExit("ffmpeg not found (needed to pack the cutouts): install it or `pip install imageio-ffmpeg`")
+
+
+def foot_track(ffmpeg, src):
+    """Per-frame feet of the dunker in the matte half of a Cutout clip (see feet.json above)."""
+    import subprocess
+    import numpy as np
+    try:
+        from scipy import ndimage
+    except ImportError:
+        ndimage = None
+    w, h = PACK["w"], PACK["h"]
+    raw = subprocess.run([ffmpeg, "-v", "error", "-i", src, "-vf", f"crop={w}:{h}:{w}:0,format=gray", "-f", "rawvideo", "-"],
+                         capture_output=True, check=True).stdout
+    frames = np.frombuffer(raw, np.uint8).reshape(-1, h, w)
+    track = []
+    for m in frames:
+        on = m > 127
+        if ndimage is not None and on.any():
+            lab, n = ndimage.label(on)
+            if n > 1:
+                on = lab == (np.argmax(np.bincount(lab.ravel())[1:]) + 1)
+        ys, xs = np.nonzero(on)
+        if len(ys) < 50:
+            track.append(None)
+            continue
+        yb, yt = int(ys.max()), int(ys.min())
+        band = ys >= yb - max(6, 0.03 * (yb - yt))
+        xl, xr = np.percentile(xs[band], [5, 95])
+        track.append([round(float(xl), 1), round(float(xr), 1), yb, yt, int(yb >= h - 3)])
+    return track
+
+
+cut_dir = os.path.join(UNREAL, "Content/Movies/Cutout")
+cutout = sorted(f[:-4] for f in os.listdir(cut_dir) if f.lower().endswith(".mp4") and f[:-4] in clips) if os.path.isdir(cut_dir) else []
+if cutout:
+    import subprocess
+    ffmpeg = ffmpeg_exe()
+    feet = {}
+    for c in cutout:
+        line_src = os.path.join(UNREAL, "Content/Movies", c + ".mp4")
+        cut_src = os.path.join(cut_dir, c + ".mp4")
+        dst = out("clips", "cutout", c + ".mp4")
+        if not (os.path.exists(dst) and os.path.getmtime(dst) > max(os.path.getmtime(line_src), os.path.getmtime(cut_src))):
+            w, g = PACK["w"], PACK["gap"]
+            graph = (f"[0:v]pad={w + g}:{PACK['h']}:0:0:black[a];"
+                     f"[1:v]crop={w}:{PACK['h']}:0:0,pad={w + g}:{PACK['h']}:0:0:black[b];"
+                     f"[1:v]crop={w}:{PACK['h']}:{w}:0[c];[a][b][c]hstack=inputs=3,format=yuv420p[v]")
+            subprocess.run([ffmpeg, "-v", "error", "-y", "-i", line_src, "-i", cut_src, "-filter_complex", graph, "-map", "[v]",
+                            "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-profile:v", "high", "-level", "5.1",
+                            "-g", "30", "-fps_mode", "passthrough", "-movflags", "+faststart", "-an", dst], check=True)
+        feet[c] = foot_track(ffmpeg, cut_src)
+    with open(out("clips", "cutout", "feet.json"), "w", encoding="utf-8", newline="\n") as f:
+        json.dump({"_about": "Per frame: [x_left, x_right, y_bottom, y_top, cut] of the dunker's lowest 3% in the 720x1280 "
+                             "clip (cut = runs off the bottom of the frame), or null. Written by tools/sync_assets.py.",
+                   "fps": PACK["fps"], "clips": feet}, f, separators=(",", ":"))
+
 with open(out("js", "clips.js"), "w") as f:
-    f.write("// Generated by tools/sync_assets.py: clips that exist in clips/, and those with real footage in clips/real/.\n"
-            "export const CLIPS = new Set(%s);\nexport const REAL = new Set(%s);\n" % (json.dumps(clips), json.dumps(real)))
+    f.write("// Generated by tools/sync_assets.py: clips that exist in clips/, those with real footage in clips/real/, and\n"
+            "// those with a cutout (clips/cutout/<Clip>.mp4: line art | real | matte in one video, laid out as PACKING).\n"
+            "export const CLIPS = new Set(%s);\nexport const REAL = new Set(%s);\nexport const CUTOUT = new Set(%s);\n"
+            "export const PACKING = %s;\n" % (json.dumps(clips), json.dumps(real), json.dumps(cutout), json.dumps(PACK)))
 
 for song in ["DefaultTheme", "Song2", "FastLane", "Over", "Represent", "WeDemBoyz"]:
     copy(os.path.join(UNREAL, "Audio", song + ".mp3"), "assets", "audio", song + ".mp3")
