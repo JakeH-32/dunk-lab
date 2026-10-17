@@ -1,6 +1,6 @@
 # Dunk Lab (web)
 
-Play it: **https://jakeh-32.github.io/dunk-lab/**
+Play it: **https://dunklab.app/** (also https://jakeh-32.github.io/dunk-lab/, which redirects)
 
 Pick a takeoff, pick a dunk, and watch it as 2D line art, with a retro car stereo playing in the
 corner. This is the browser version of my Unreal Engine 5 class project. It runs on phones too.
