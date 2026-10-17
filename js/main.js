@@ -1,8 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS, REAL } from "./clips.js?v=29";
+import { CLIPS, CUTOUT, PACKING, REAL } from "./clips.js?v=30";
+import { Court, DEFAULT_CAMERA } from "./court.js?v=31";
+import { CutoutLayer } from "./cutout.js?v=32";
 import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=29";
-import { LineFX } from "./fx.js?v=29";
+import { LineFX } from "./fx.js?v=30";
 import { Radio } from "./radio.js?v=29";
 import { play, unlock } from "./sound.js?v=29";
 
@@ -20,9 +22,14 @@ const pauseKey = $("#key-pause");
 
 const dock = $("#radio-dock");
 const radio = new Radio(dock);
+let court = null; // live WebGL court (startCourt, at the bottom); null when the static background is used
+let clipCams = null; // per-clip phone cameras (assets/brand/clip_cameras.json)
 
-// VIEW modes. 0 shows the clip itself; 1-2 run the GPU line-art pipeline (js/fx.js).
+// VIEW modes. 0 (3D) composites the cut-out dunker into the live court (js/cutout.js; only with the live court and a
+// cutout for the clip, otherwise it is skipped); 1 shows the line-art clip itself; 2+ run the GPU line-art pipeline
+// (js/fx.js, whose mode is ours minus one).
 const MODES = [
+  { label: "3D", title: "3D COURT", text: "You, cut out of the real footage with a segmentation model and composited into the live 3D court from the exact camera that filmed you." },
   { label: "LINE ART", title: "LINE ART", text: "The dunk traced as line art. Press VIEW to see how the GPU reads the lines." },
   { label: "DISTANCE", title: "DISTANCE VIEW", text: "A distance field: every pixel knows how far it is from the nearest line, rebuilt each frame on the GPU with jump flooding. Rings are 8 px apart." },
   { label: "RE-STROKE", title: "RE-STROKE VIEW", text: "The lines redrawn from the distance field instead of copied from the video, so every stroke gets the same clean width and glow." },
@@ -32,25 +39,38 @@ const MODES = [
   { label: "SPEED", title: "SPEED VIEW", text: "Lines coloured by how fast they move, measured frame to frame: blue is still, cyan and white are faster, orange is fastest." },
 ];
 const SLOWMO_NOTE = "Slow-mo: the GPU makes the in-between frames itself, sliding each line toward its next position.";
-let mode = 0;
+let mode = 1;
 let fx = null;
 try {
   if (LineFX.supported()) fx = new LineFX($("#fx"), $("#video"));
 } catch (e) {
   console.warn("Line-art views unavailable:", e);
 }
+let cutoutLayer = null; // js/cutout.js, with the live court (startCourt)
+let feetData = null; // clips/cutout/feet.json
 let slowMo = false;
 function updateExplain() {
   $("#explain-title").textContent = MODES[mode].title;
   $("#explain-text").textContent = MODES[mode].text;
-  $("#explain-note").textContent = slowMo && mode > 0 ? SLOWMO_NOTE : "";
-  $("#explain-note").hidden = !(slowMo && mode > 0);
+  $("#explain-note").textContent = slowMo && mode > 1 ? SLOWMO_NOTE : "";
+  $("#explain-note").hidden = !(slowMo && mode > 1);
 }
+// the 3D view needs the live court, the cutout layer and the packed clip
+const can3D = () => !!(cutoutLayer && court && document.documentElement.classList.contains("court") && $("#video").classList.contains("packed"));
 function setMode(m) {
+  if (m === 0 && !can3D()) m = 1;
   mode = m;
   $("#view-label").innerHTML = `<span class="vp">VIEW: </span>${MODES[m].label}`;
-  if (fx) fx.setMode(m);
+  if (fx) fx.setMode(Math.max(0, m - 1));
   updateExplain();
+  update3D();
+}
+// 3D view on: the bezel, the video and the real-footage slider make way, and the cutout layer draws over the court
+// (once the camera has landed in the clip's camera)
+function update3D() {
+  const on = mode === 0;
+  $("#player").classList.toggle("view3d", on);
+  if (cutoutLayer) cutoutLayer.setActive(on && document.body.dataset.court === "landed");
 }
 function setSlowMo(on) {
   slowMo = on;
@@ -73,11 +93,11 @@ addEventListener("scroll", () => detailsHint.classList.toggle("gone", scrollY > 
 // No page zoom on phones (it was easy to double-tap-zoom while pressing keys and get stuck zoomed in). The viewport meta
 // and touch-action handle most browsers; iOS Safari ignores user-scalable=no for pinches, so cancel its gesture events.
 for (const type of ["gesturestart", "gesturechange"]) document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
-$("#key-view").addEventListener("click", () => setMode((mode + 1) % MODES.length));
+$("#key-view").addEventListener("click", () => setMode((mode + 1) % MODES.length || (can3D() ? 0 : 1)));
 sfxOn($("#key-view"), "select");
 $("#key-slow").addEventListener("click", () => setSlowMo(!slowMo));
 sfxOn($("#key-slow"), "select");
-setMode(0);
+setMode(1);
 
 // Keep page content clear of the radio when it is docked at the bottom (phone menu), via --dock-h.
 const phone = window.matchMedia("(max-width: 899px)");
@@ -185,39 +205,146 @@ function showDunks(t) {
   dunkList.hidden = false;
 }
 
+// ---- the swoop: with the live court, picking a dunk flies the background camera into the phone camera the clip
+// was filmed with (assets/brand/clip_cameras.json, Tools/Brand/clip_cameras.py in the Unreal project), framed so
+// the video's box shows exactly that camera's 720x1280 picture. The video appears when the camera lands, so the
+// clip's hoop sits on the 3D hoop and the court around the bezel continues the shot. Back to Menu flies back.
+const SWOOP_MS = 1700; // long enough that the turn and zoom read as a glide, not a lurch
+const SWOOP_EASE = "smoother";
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+let flight = 0; // id of the latest transition; older ones stop when they see it changed
+
+function clipCamera(key) {
+  const j = court && court.isReady && document.documentElement.classList.contains("court") && clipCams && clipCams[key];
+  if (!j) return null;
+  const im = j.image;
+  return Court.fitCamera(j, { w: im.w, h: im.h, f: im.f_px, cx: im.cx, cy: im.cy }, video);
+}
+// Take an element out of the layout where it is (it keeps its look while it fades), or put it back.
+function pin(el) {
+  if (el.dataset.pinned) return;
+  const r = el.getBoundingClientRect();
+  el.dataset.pinned = "1";
+  Object.assign(el.style, { position: "fixed", left: r.left + "px", top: r.top + "px", width: r.width + "px", margin: "0", zIndex: "3" });
+}
+function unpin(el) {
+  delete el.dataset.pinned;
+  for (const p of ["position", "left", "top", "width", "margin", "zIndex"]) el.style[p] = "";
+}
+function courtState(s) {
+  document.body.dataset.court = s; // "menu" | "flying" | "landed" (tests read it)
+}
+
 function playDunk(d, t) {
+  const key = `${d.key}${t.key}`;
+  const my = ++flight;
   caption.textContent = `${d.label.toUpperCase()} — ${t.label.toUpperCase()}`;
   status.hidden = true;
   frame.classList.remove("ready");
-  video.src = `clips/${d.key}${t.key}.mp4`;
-  loadReal(`${d.key}${t.key}`);
+  const cam = clipCamera(key);
+  // with the live court and a cutout: the packed clip (line art | real | matte), so the 3D view is frame-locked to it
+  const packed = !!(cam && cutoutLayer && CUTOUT.has(key));
+  video.classList.toggle("packed", packed);
+  video.dataset.panelW = packed ? PACKING.w : "";
+  video.src = packed ? `clips/cutout/${key}.mp4` : `clips/${key}.mp4`;
+  if (packed) cutoutLayer.setClip(key, clipCams[key], feetData && feetData.clips[key]);
+  if (cutoutLayer) cutoutLayer.setActive(false);
+  loadReal(key);
   setSlowMo(false);
-  video.play().catch(() => {});
-  menu.hidden = true;
+  setMode(packed ? 0 : mode === 0 ? 1 : mode); // 3D is the default when it's there
+  if (!cam) {
+    // no live court (or no camera for this clip): straight cut, as before
+    video.play().catch(() => {});
+    unpin(menu);
+    menu.classList.remove("fading");
+    player.classList.remove("fading");
+    menu.hidden = true;
+    player.hidden = false;
+    frame.classList.add("landed");
+    document.body.classList.add("playing");
+    updateDockSpace();
+    window.scrollTo(0, 0);
+    return;
+  }
+  video.pause(); // starts at frame 0 when the camera lands
+  const ms = reducedMotion.matches ? 0 : SWOOP_MS;
+  // the menu fades where it is; the player is laid out (invisible) right away, so the landing frame is known
+  if (!menu.hidden) pin(menu);
+  menu.classList.add("fading");
+  frame.classList.remove("landed");
+  player.classList.add("fading");
   player.hidden = false;
   document.body.classList.add("playing");
   updateDockSpace();
   window.scrollTo(0, 0);
+  courtState("flying");
+  setTimeout(() => my === flight && player.classList.remove("fading"), ms * 0.45); // fades in as it lands
+  court.animateTo(cam, ms, SWOOP_EASE).then((done) => {
+    if (!done || my !== flight) return;
+    unpin(menu);
+    menu.hidden = true;
+    menu.classList.remove("fading");
+    player.classList.remove("fading");
+    frame.classList.add("landed");
+    courtState("landed");
+    video.currentTime = 0;
+    video.play().catch(() => {});
+    update3D();
+  });
 }
 
 function backToMenu() {
+  const my = ++flight;
+  if (cutoutLayer) cutoutLayer.setActive(false);
   video.pause();
   video.removeAttribute("src");
   video.load();
   loadReal(null);
-  player.hidden = true;
-  menu.hidden = false;
-  document.body.classList.remove("playing");
-  updateDockSpace();
-  window.scrollTo(0, 0);
-  showDunks(takeoff);
+  const toMenu = () => {
+    if (my !== flight) return;
+    unpin(menu);
+    player.hidden = true;
+    player.classList.remove("fading");
+    menu.hidden = false;
+    document.body.classList.remove("playing");
+    updateDockSpace();
+    window.scrollTo(0, 0);
+    showDunks(takeoff);
+  };
+  if (!(court && court.isReady && document.documentElement.classList.contains("court"))) {
+    menu.classList.remove("fading");
+    toMenu();
+    return;
+  }
+  // the video goes (the court behind it is the same view), the player fades, the camera flies back to the menu
+  // view and the menu fades in as it arrives
+  const ms = reducedMotion.matches ? 0 : SWOOP_MS;
+  frame.classList.remove("landed");
+  player.classList.add("fading");
+  courtState("flying");
+  const showMenu = () => {
+    toMenu();
+    if (my !== flight) return;
+    menu.classList.add("fading");
+    requestAnimationFrame(() => requestAnimationFrame(() => my === flight && menu.classList.remove("fading")));
+  };
+  if (ms) setTimeout(showMenu, ms * 0.35);
+  else showMenu();
+  court.animateTo(DEFAULT_CAMERA, ms, SWOOP_EASE).then((done) => done && my === flight && courtState("menu"));
 }
 
 // Reveal the video once it has a real frame (avoids a flash of the wrong size).
 video.addEventListener("loadeddata", () => frame.classList.add("ready"));
 // The phone layout sizes the video box from the clip's aspect ratio (--ar).
 video.addEventListener("loadedmetadata", () => {
-  if (video.videoWidth && video.videoHeight) frame.style.setProperty("--ar", video.videoWidth / video.videoHeight);
+  const w = +video.dataset.panelW || video.videoWidth; // packed clips: one panel
+  if (w && video.videoHeight) frame.style.setProperty("--ar", w / video.videoHeight);
+});
+// a paused 3D view still follows seeks (replay while paused, loop)
+video.addEventListener("seeked", () => {
+  if (!cutoutLayer || !cutoutLayer.active) return;
+  cutoutLayer.mediaTime = null; // the frame is now the one at currentTime
+  cutoutLayer.draw(true);
 });
 video.addEventListener("error", () => {
   if (!video.getAttribute("src")) return;
@@ -352,3 +479,93 @@ for (const t of TAKEOFFS) {
 showTakeoffs();
 placeTips();
 document.fonts.ready.then(placeTips);
+
+// ---- live court background (js/court.js) ----
+// Rendered once, and again only on resize or while the camera animates. Debug / test hooks:
+//   window.__court             the Court: __court.getCamera(), .setCamera({pos, yaw, pitch, f | fovY}),
+//                              .animateTo(cam, ms, ease, {arc, via}) -> Promise, .bench(n) -> ms per still frame
+//   ?court=cam                 logs the camera after every change and flies it with the keyboard: arrows turn,
+//                              I/K forward/back, J/L left/right, U/O down/up, [ ] zoom, 0 reset (Shift = 5x)
+//   ?court=off                 the static background.jpg instead
+//   body[data-court]           "menu" | "flying" | "landed": the swoop's state (see playDunk)
+function startCourt() {
+  const root = document.documentElement;
+  if (!root.classList.contains("court")) return;
+  const canvas = $("#court");
+  try {
+    court = new Court(canvas);
+  } catch (e) {
+    console.warn("Live court unavailable, using the static background:", e);
+    root.classList.remove("court");
+    court = null;
+    return;
+  }
+  window.__court = court;
+  courtState("menu");
+  court.ready.catch((e) => {
+    console.warn("Live court failed to start, using the static background:", e);
+    root.classList.remove("court");
+    court = null;
+  });
+  fetch("assets/brand/clip_cameras.json?v=31")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => (clipCams = j))
+    .catch(() => {}); // no cameras: dunks open with a cut, as without the court
+  // the 3D view's layer: a second, light WebGL canvas over the court (js/cutout.js)
+  if (CUTOUT.size) {
+    try {
+      cutoutLayer = new CutoutLayer($("#cutout"), video, court, PACKING);
+      window.__cutout = cutoutLayer;
+      fetch("clips/cutout/feet.json?v=32")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => (feetData = j))
+        .catch(() => {}); // no foot track: no contact shadow
+    } catch (e) {
+      console.warn("3D view unavailable:", e);
+      cutoutLayer = null;
+    }
+  }
+  court.onLost = () => {
+    root.classList.remove("court");
+    if (mode === 0) setMode(1);
+  };
+  court.onRestored = () => root.classList.add("court");
+  const camDebug = new URLSearchParams(location.search).get("court") === "cam";
+  let logged = "";
+  court.onRender = () => {
+    canvas.classList.add("ready");
+    // the 3D layer uses the same framing: redraw it when the court redraws (resize, scroll on phones)
+    if (cutoutLayer && cutoutLayer.active) cutoutLayer.draw();
+    if (!camDebug || court.anim) return;
+    const c = court.getCamera();
+    const r = (v) => Math.round(v * 1000) / 1000;
+    const line = `__court.setCamera({ pos: [${c.pos.map(r).join(", ")}], yaw: ${r(c.yaw)}, pitch: ${r(c.pitch)}, roll: ${r(c.roll)}, ` +
+      `f: ${r(c.f)}, pp: [${c.pp.map(r).join(", ")}] })${c.fit ? " // fitted to the video" : ""}`;
+    if (line !== logged) console.log((logged = line));
+  };
+  if (camDebug) {
+    window.addEventListener("keydown", (e) => {
+      const c = court.getCamera();
+      const s = e.shiftKey ? 5 : 1;
+      const yaw = c.yaw * Math.PI / 180;
+      const fwd = [Math.sin(yaw), 0, -Math.cos(yaw)];
+      const right = [Math.cos(yaw), 0, Math.sin(yaw)];
+      const move = (v, m) => c.pos.forEach((_, i) => (c.pos[i] += v[i] * m * 0.25 * s));
+      const keys = {
+        ArrowLeft: () => (c.yaw -= s), ArrowRight: () => (c.yaw += s),
+        ArrowUp: () => (c.pitch -= 0.5 * s), ArrowDown: () => (c.pitch += 0.5 * s),
+        KeyI: () => move(fwd, 1), KeyK: () => move(fwd, -1), KeyJ: () => move(right, -1), KeyL: () => move(right, 1),
+        KeyU: () => move([0, 1, 0], -1), KeyO: () => move([0, 1, 0], 1),
+        BracketLeft: () => (c.f /= 1.05 ** s), BracketRight: () => (c.f *= 1.05 ** s),
+        Digit0: () => Object.assign(c, { ...DEFAULT_CAMERA, pos: [...DEFAULT_CAMERA.pos], roll: 0, pp: [0, 0], fit: null }),
+      };
+      if (!keys[e.code]) return;
+      e.preventDefault();
+      e.stopPropagation();
+      keys[e.code]();
+      delete c.fovY;
+      court.setCamera(c);
+    }, { capture: true });
+  }
+}
+startCourt();
