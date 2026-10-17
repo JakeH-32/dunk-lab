@@ -5,8 +5,9 @@ import { Court, DEFAULT_CAMERA } from "./court.js?v=31";
 import { CutoutLayer } from "./cutout.js?v=32";
 import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=29";
 import { LineFX } from "./fx.js?v=30";
-import { Radio } from "./radio.js?v=29";
-import { play, unlock } from "./sound.js?v=29";
+import { Radio } from "./radio.js?v=35";
+import { DunkSfx } from "./sfx.js?v=35";
+import { play, unlock } from "./sound.js?v=35";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -22,6 +23,21 @@ const pauseKey = $("#key-pause");
 
 const dock = $("#radio-dock");
 const radio = new Radio(dock);
+// Dunk sound effects (js/sfx.js), synced to the clip. The speaker key (or M) mutes them; remembered per browser.
+const sfx = new DunkSfx(video);
+window.__sfx = sfx;
+const sfxKey = $("#sfx-toggle");
+function showSfx() {
+  sfxKey.classList.toggle("off", !sfx.on);
+  sfxKey.setAttribute("aria-pressed", String(sfx.on));
+  sfxKey.title = sfx.on ? "Sound effects on (M)" : "Sound effects off (M)";
+}
+function toggleSfx() {
+  sfx.setOn(!sfx.on);
+  showSfx();
+}
+sfxKey.addEventListener("click", toggleSfx);
+showSfx();
 let court = null; // live WebGL court (startCourt, at the bottom); null when the static background is used
 let clipCams = null; // per-clip phone cameras (assets/brand/clip_cameras.json)
 
@@ -78,6 +94,7 @@ function setSlowMo(on) {
   $("#slow-state").textContent = on ? "ON" : "OFF";
   if (fx) fx.setSlowMo(on);
   else $("#video").playbackRate = on ? 0.25 : 1;
+  sfx.setSlowMo(on);
   updateExplain();
 }
 if (!fx) {
@@ -238,6 +255,7 @@ function courtState(s) {
 function playDunk(d, t) {
   const key = `${d.key}${t.key}`;
   const my = ++flight;
+  sfx.setClip(key); // silent until the clip plays (after the swoop)
   caption.textContent = `${d.label.toUpperCase()} — ${t.label.toUpperCase()}`;
   status.hidden = true;
   frame.classList.remove("ready");
@@ -295,6 +313,7 @@ function playDunk(d, t) {
 
 function backToMenu() {
   const my = ++flight;
+  sfx.setClip(null);
   if (cutoutLayer) cutoutLayer.setActive(false);
   video.pause();
   video.removeAttribute("src");
@@ -429,7 +448,7 @@ $("#key-replay").addEventListener("click", () => {
 const togglePause = () => (video.paused ? video.play().catch(() => {}) : video.pause());
 pauseKey.addEventListener("click", togglePause);
 // Keyboard shortcuts, the same as the Unreal build. Player: Space pause/play, R replay, V view, S slow-mo, C real footage,
-// Backspace/Esc back. Menu: 1-3 pick a takeoff, 1-6 pick a dunk, Backspace/Esc back to the takeoffs.
+// M sound effects on/off (web only), Backspace/Esc back. Menu: 1-3 pick a takeoff, 1-6 pick a dunk, Backspace/Esc back to the takeoffs.
 // Handled keys are stopped before they reach a focused button, which would otherwise also be pressed.
 const PLAYER_KEYS = {
   Space: ["select", () => togglePause()],
@@ -437,6 +456,7 @@ const PLAYER_KEYS = {
   KeyV: ["select", () => fx && $("#key-view").click()],
   KeyS: ["select", () => $("#key-slow").click()],
   KeyC: ["select", () => cycleSplit()],
+  KeyM: ["select", () => toggleSfx()],
   Backspace: ["back", () => backToMenu()],
   Escape: ["back", () => backToMenu()],
 };
@@ -468,6 +488,7 @@ $("#key-back").addEventListener("click", backToMenu);
 sfxOn($("#key-replay"), "select");
 sfxOn(pauseKey, "select");
 sfxOn($("#key-back"), "back");
+sfxOn(sfxKey, "select");
 
 for (const t of TAKEOFFS) {
   const chev = document.createElement("i");
