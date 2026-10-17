@@ -73,13 +73,17 @@ function hexLin(h) {
   });
 }
 
-// Camera basis, identical to court_render.Camera.
-function basis(yawDeg, pitchDeg) {
+// Camera basis, identical to court_render.Camera, plus roll as in clip_cameras.cam_axes (rotation about the view
+// axis, + = the camera's right side up).
+function basis(yawDeg, pitchDeg, rollDeg = 0) {
   const y = yawDeg * D2R;
   const p = pitchDeg * D2R;
+  const r = rollDeg * D2R;
   const fwd = [Math.cos(p) * Math.sin(y), -Math.sin(p), -Math.cos(p) * Math.cos(y)];
-  const right = [Math.cos(y), 0, Math.sin(y)];
-  const up = cross(right, fwd);
+  const right0 = [Math.cos(y), 0, Math.sin(y)];
+  const up0 = cross(right0, fwd);
+  const right = add(mul(right0, Math.cos(r)), mul(up0, Math.sin(r)));
+  const up = add(mul(right0, -Math.sin(r)), mul(up0, Math.cos(r)));
   return { fwd, right, up };
 }
 
@@ -604,11 +608,11 @@ vec3 shadeFloor(vec3 D, float sub) {
   float t = -Cy / Dy;
   float x = uPos.x + D.x * t;
   float z = uPos.z + D.z * t;
-  // exact Jacobian of the plane hit w.r.t. screen x and y, per sample step
+  // exact Jacobian of the plane hit w.r.t. screen x and y, per sample step: P = C - D Cy / Dy, dD/dsx = right / f,
+  // dD/dsy = -up / f  =>  dP = -(Cy / Dy) (dD - D dD.y / Dy). Equals the Python's when right.y = 0 (no roll).
   float k1 = -Cy / (uF * Dy) / sub;
-  vec2 Jx = k1 * vec2(uRight.x, uRight.z);
-  float k2 = Cy / (uF * Dy * Dy) / sub;
-  vec2 Jy = k2 * vec2(uUp.x * Dy - D.x * uUp.y, uUp.z * Dy - D.z * uUp.y);
+  vec2 Jx = k1 * (uRight.xz - D.xz * (uRight.y / Dy));
+  vec2 Jy = -k1 * (uUp.xz - D.xz * (uUp.y / Dy));
   float fx = abs(Jx.x) + abs(Jy.x) + 1e-7;
   float fz = abs(Jx.y) + abs(Jy.y) + 1e-7;
 
@@ -756,10 +760,24 @@ const EASES = {
   outCubic: (t) => 1 - (1 - t) ** 3,
 };
 
+// Camera: pos, yaw, pitch, roll (deg) and intrinsics, either
+//   f (px of the 2560x1440 reference frame, shown like CSS `cover`) + pp (principal-point offset from the frame
+//   centre, reference px, y down), or
+//   fit: { element, image: { w, h, f, cx, cy } }: a pinhole image (e.g. a clip's 720x1280 frame, f / cx / cy in
+//   its px) shown exactly in `element`'s box (object-fit: contain); f and pp are then derived from the element's
+//   position on the page whenever the scene is drawn.
 function normCam(c) {
   const f = c.f ?? (c.fovY != null ? REF_H / 2 / Math.tan((c.fovY * D2R) / 2) : DEFAULT_CAMERA.f);
-  return { pos: [...c.pos], yaw: c.yaw, pitch: c.pitch, f };
+  return { pos: [...c.pos], yaw: c.yaw, pitch: c.pitch, roll: c.roll ?? 0, f, pp: c.pp ? [...c.pp] : [0, 0], fit: c.fit ?? null };
 }
+
+// Obstacles for camera paths (world AABBs: x0, x1, y0, y1, z0, z1): stanchion, arm and posts, backboard, rim + net.
+const OBSTACLES = [
+  [0.95, 2.65, 0, 3.0, -0.72, 0.72],
+  [-1.2, 1.5, 2.6, 3.7, -0.45, 0.45],
+  [-1.3, -1.1, 2.8, 4.0, -0.95, 0.95],
+  [-1.85, -1.35, 2.55, 3.1, -0.25, 0.25],
+];
 
 function slerp(a, b, t) {
   const d = Math.min(1, Math.max(-1, dot(a, b)));
@@ -1022,64 +1040,219 @@ export class Court {
   }
 
   // ---- camera ----
-  getCamera() {
-    const c = this.cam;
-    return { pos: [...c.pos], yaw: c.yaw, pitch: c.pitch, f: c.f, fovY: (2 * Math.atan(REF_H / 2 / c.f)) / D2R };
+  // Intrinsics in canvas device px for camera c: focal length f, principal point (cx, cy) (y down), and k, the
+  // cover scale of the reference frame (also the line-width scale).
+  intrinsics(c = this.cam) {
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+    const k = Math.max(W / REF_W, H / REF_H);
+    const fr = c.fit && this.fitRect(c.fit);
+    if (fr) return { f: c.fit.image.f * fr.s, cx: fr.left + c.fit.image.cx * fr.s, cy: fr.top + c.fit.image.cy * fr.s, k };
+    return { f: c.f * k, cx: W / 2 + c.pp[0] * k, cy: H / 2 + c.pp[1] * k, k };
   }
 
+  // The fitted image's box in canvas device px (object-fit: contain inside the element), or null if not laid out.
+  fitRect(fit) {
+    const B = fit.element.getBoundingClientRect();
+    if (!(B.width > 0 && B.height > 0)) return null;
+    // the browser draws the video snapped to whole device pixels (e.g. top 97.5 -> 98): snap the same way
+    const dpr = window.devicePixelRatio || 1;
+    const snap = (v) => Math.round(v * dpr) / dpr;
+    const R = { left: snap(B.left), top: snap(B.top) };
+    R.width = snap(B.left + B.width) - R.left;
+    R.height = snap(B.top + B.height) - R.top;
+    const C = this.canvas.getBoundingClientRect();
+    const im = fit.image;
+    const s = Math.min(R.width / im.w, R.height / im.h);
+    const sx = this.canvas.width / (C.width || 1);
+    const sy = this.canvas.height / (C.height || 1);
+    return { s: s * sx, left: (R.left + (R.width - im.w * s) / 2 - C.left) * sx, top: (R.top + (R.height - im.h * s) / 2 - C.top) * sy };
+  }
+
+  // Intrinsics of c as reference-frame f / pp (what cover-style cameras store); used to interpolate between a
+  // cover camera and a fitted one.
+  refIntrinsics(c) {
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+    const i = this.intrinsics(c);
+    return { f: i.f / i.k, pp: [(i.cx - W / 2) / i.k, (i.cy - H / 2) / i.k] };
+  }
+
+  getCamera() {
+    const c = this.cam;
+    const r = this.refIntrinsics(c);
+    const out = { pos: [...c.pos], yaw: c.yaw, pitch: c.pitch, roll: c.roll, f: r.f, pp: r.pp, fovY: (2 * Math.atan(REF_H / 2 / r.f)) / D2R };
+    if (c.fit) out.fit = c.fit;
+    return out;
+  }
+
+  // Partial updates are merged into the current camera. Giving f, fovY or pp (without fit) leaves a fitted framing.
   setCamera(cam) {
     this.stop();
-    this.cam = normCam({ ...this.cam, ...cam, f: cam.f ?? (cam.fovY != null ? undefined : this.cam.f) });
+    this.cam = this.merge(this.cam, cam);
+    this.watchFit();
     this.requestRender();
   }
 
-  requestRender() {
+  merge(base, cam) {
+    const next = { ...base, ...cam };
+    if (!("fit" in cam) && (cam.f != null || cam.fovY != null || cam.pp)) next.fit = null;
+    next.f = cam.f ?? (cam.fovY != null ? undefined : base.f);
+    return normCam(next);
+  }
+
+  requestRender(ss) {
     if (this.pending) return;
     this.pending = requestAnimationFrame(() => {
       this.pending = 0;
-      this.render();
+      this.render(ss);
     });
   }
 
-  // Animate to `target` over `ms`. Position follows a cubic Bezier (lifted by opts.arc metres, default 15% of the
-  // distance, or through opts.via [x,y,z] at the midpoint); the view direction is slerped (shortest arc, no roll);
-  // f is interpolated geometrically (a zoom feels uniform). ease: a name in EASES or a function. Resolves true when
-  // done, false if interrupted by another animateTo / setCamera / stop. Honours prefers-reduced-motion (jumps)
-  // unless opts.ignoreReducedMotion.
+  // While the camera is fitted to an element, follow that element (scrolling, layout changes): scroll re-renders
+  // at motion quality and once more at full quality when it stops; a light poll catches other layout moves.
+  watchFit() {
+    const on = !!(this.cam.fit && !this.anim);
+    if (!on) {
+      if (this.fitWatch) {
+        removeEventListener("scroll", this.fitWatch.onScroll, true);
+        clearInterval(this.fitWatch.poll);
+        clearTimeout(this.fitWatch.still);
+        this.fitWatch = null;
+      }
+      return;
+    }
+    if (this.fitWatch) return;
+    const key = () => {
+      const r = this.cam.fit && this.fitRect(this.cam.fit);
+      return r ? `${r.s.toFixed(4)},${r.left.toFixed(1)},${r.top.toFixed(1)}` : "";
+    };
+    const w = (this.fitWatch = { last: key() });
+    w.onScroll = () => {
+      w.last = key();
+      this.requestRender(this.ssMotion);
+      clearTimeout(w.still);
+      w.still = setTimeout(() => this.render(), 160);
+    };
+    w.poll = setInterval(() => {
+      const k = key();
+      if (k !== w.last) {
+        w.last = k;
+        this.render();
+      }
+    }, 250);
+    addEventListener("scroll", w.onScroll, { capture: true, passive: true });
+  }
+
+  // A camera that shows a pinhole image (e.g. a clip's 720x1280 frame) exactly inside `element`.
+  static fitCamera({ pos, yaw, pitch, roll = 0 }, image, element) {
+    return { pos: [...pos], yaw, pitch, roll, fit: { element, image: { ...image } } };
+  }
+
+  // Midpoint for a camera path from P0 to P3 that stays clear of the hoop's solids and above the floor: tries a
+  // fan of lifted / sideways-bowed quadratic paths and keeps the cheapest one without collisions.
+  planVia(P0, P3) {
+    const d = len(sub(P3, P0));
+    const mid = mul(add(P0, P3), 0.5);
+    let side = [P3[2] - P0[2], 0, P0[0] - P3[0]];
+    side = len(side) > 1e-6 ? norm(side) : [1, 0, 0];
+    const floorY = Math.min(0.15, P0[1], P3[1]) - 1e-3;
+    const m = 0.35;
+    const hits = (via) => {
+      const C = mul(sub(via, mul(add(P0, P3), 0.125)), 1 / 0.75);
+      let n = 0;
+      for (let i = 1; i < 48; i++) {
+        const t = i / 48;
+        const u = 1 - t;
+        const p = add(add(mul(P0, u * u), mul(C, 2 * u * t)), mul(P3, t * t));
+        if (p[1] < floorY) n++;
+        for (const [x0, x1, y0, y1, z0, z1] of OBSTACLES) {
+          if (p[0] > x0 - m && p[0] < x1 + m && p[1] > y0 - m && p[1] < y1 + m && p[2] > z0 - m && p[2] < z1 + m) n++;
+        }
+      }
+      return n;
+    };
+    let best = null;
+    // a gentle lift (about 6% of the distance, at most 1 m) unless that path hits something
+    for (const lift of [Math.min(0.06, 1 / Math.max(d, 1e-3)), 0.15, 0.3, 0.5]) {
+      for (const lat of [0, 0.3, -0.3, 0.6, -0.6]) {
+        const via = add(add(mid, [0, lift * d, 0]), mul(side, lat * d));
+        const cost = hits(via) * 1000 + Math.abs(lat) * 2 + lift;
+        if (!best || cost < best.cost) best = { via, cost };
+      }
+    }
+    return best.via;
+  }
+
+  // Animate to `target` over `ms`. Position follows a smooth path through opts.via [x,y,z] at the midpoint
+  // (default: planVia, a lifted arc that avoids the hoop and the floor; opts.arc = lift in metres instead); the view
+  // follows a sliding look point (opts.orient "look", default) or is slerped (opts.orient "slerp"), roll is
+  // interpolated along the shortest way; f is interpolated geometrically
+  // and the principal point linearly. The target may be fitted to an element (fitCamera): its intrinsics are
+  // re-evaluated every frame, so a resize during the flight still lands exactly. ease: a name in EASES or a
+  // function. Resolves true when done, false if interrupted by another animateTo / setCamera / stop. Honours
+  // prefers-reduced-motion (cuts) unless opts.ignoreReducedMotion.
   animateTo(target, ms = 1200, ease = "inOutCubic", opts = {}) {
     this.stop();
-    const a = this.getCamera();
-    const b = normCam({ ...a, ...target, f: target.f ?? (target.fovY != null ? undefined : a.f) });
+    const a = normCam({ ...this.getCamera(), fit: null }); // current view, frozen as reference intrinsics
+    const b = this.merge({ ...a, roll: 0, pp: [0, 0] }, target);
     const reduce = !opts.ignoreReducedMotion && matchMedia("(prefers-reduced-motion: reduce)").matches;
     const fn = typeof ease === "function" ? ease : EASES[ease] || EASES.inOutCubic;
     const P0 = a.pos;
     const P3 = b.pos;
     let P1;
     let P2;
-    if (opts.via) {
-      const C = mul(sub(opts.via, mul(add(P0, P3), 0.125)), 1 / 0.75);
-      P1 = C;
-      P2 = C;
+    if (opts.via || opts.arc == null) {
+      const via = opts.via ?? this.planVia(P0, P3);
+      const C = mul(sub(via, mul(add(P0, P3), 0.125)), 1 / 0.75); // quadratic through via at t = 0.5, as a cubic
+      P1 = add(mul(P0, 1 / 3), mul(C, 2 / 3));
+      P2 = add(mul(P3, 1 / 3), mul(C, 2 / 3));
     } else {
-      const lift = [0, opts.arc ?? 0.15 * len(sub(P3, P0)), 0];
+      const lift = [0, opts.arc, 0];
       P1 = add(add(P0, mul(sub(P3, P0), 1 / 3)), lift);
       P2 = add(add(P0, mul(sub(P3, P0), 2 / 3)), lift);
     }
+    this.path = { P0, P1, P2, P3 };
     const F0 = basis(a.yaw, a.pitch).fwd;
     const F1 = basis(b.yaw, b.pitch).fwd;
+    // Orientation: "look" (default) aims at a target that slides from where the start view looks (at the camera's
+    // distance to the rim) to where the end view looks, pulled toward the rim mid-flight (weight sin(pi t)): big
+    // turns keep the hoop in view instead of swinging through the floor or sky. If the target gets within 2 m of
+    // the camera the direction eases back to the slerp. "slerp": the view direction turns along the shortest arc.
+    const rim = [BASKET_X, RIM_Y, 0];
+    const LA = add(P0, mul(F0, Math.max(2, len(sub(rim, P0)))));
+    const LB = add(P3, mul(F1, Math.max(2, len(sub(rim, P3)))));
+    let dRoll = b.roll - a.roll;
+    dRoll -= 360 * Math.round(dRoll / 360);
     const at = (t) => {
       const u = 1 - t;
       const pos = add(add(mul(P0, u * u * u), mul(P1, 3 * u * u * t)), add(mul(P2, 3 * u * t * t), mul(P3, t * t * t)));
-      const fw = slerp(F0, F1, t);
+      let fw = slerp(F0, F1, t);
+      if (opts.orient !== "slerp") {
+        // fallback direction: yaw (shortest way) and pitch interpolated, which keeps the horizon level
+        let dy = b.yaw - a.yaw;
+        dy -= 360 * Math.round(dy / 360);
+        fw = basis(a.yaw + dy * t, a.pitch + (b.pitch - a.pitch) * t).fwd;
+        const slide = add(LA, mul(sub(LB, LA), t));
+        const target = add(slide, mul(sub(rim, slide), Math.sin(Math.PI * t)));
+        const look = sub(target, pos);
+        const d = len(look);
+        const w = Math.min(1, Math.max(0, (d - 0.5) / 1.5));
+        fw = norm(add(mul(fw, 1 - w * w * (3 - 2 * w)), mul(look, (w * w * (3 - 2 * w)) / (d || 1))));
+      }
       let yaw = Math.atan2(fw[0], -fw[2]) / D2R;
-      // keep yaw continuous with the start (no 360 jumps)
-      yaw += 360 * Math.round((a.yaw - yaw) / 360);
+      yaw += 360 * Math.round((a.yaw - yaw) / 360); // continuous with the start (no 360 jumps)
       const pitch = Math.asin(Math.max(-1, Math.min(1, -fw[1]))) / D2R;
-      return { pos, yaw, pitch, f: a.f * (b.f / a.f) ** t };
+      const B = b.fit ? this.refIntrinsics(b) : b; // live: follows the target element
+      return {
+        pos, yaw, pitch, roll: a.roll + dRoll * t, f: a.f * (B.f / a.f) ** t,
+        pp: [a.pp[0] + (B.pp[0] - a.pp[0]) * t, a.pp[1] + (B.pp[1] - a.pp[1]) * t], fit: null,
+      };
     };
     return new Promise((resolve) => {
       if (reduce || ms <= 0) {
-        this.cam = normCam(b);
+        this.cam = b;
+        this.watchFit();
         this.render();
         resolve(true);
         return;
@@ -1088,7 +1261,11 @@ export class Court {
       const anim = { resolve, raf: 0, frames: 0, times: [] };
       const step = (now) => {
         const t = Math.min(1, (now - t0) / ms);
-        this.cam = t >= 1 ? normCam(b) : at(fn(t));
+        if (t >= 1) {
+          this.cam = b;
+          this.anim = null;
+          this.watchFit();
+        } else this.cam = at(fn(t));
         const r0 = performance.now();
         this.render(t >= 1 ? this.ssStill : this.ssMotion);
         anim.times.push(performance.now() - r0);
@@ -1100,6 +1277,7 @@ export class Court {
         } else anim.raf = requestAnimationFrame(step);
       };
       this.anim = anim;
+      this.watchFit(); // off during the flight
       anim.raf = requestAnimationFrame(step);
     });
   }
@@ -1140,8 +1318,10 @@ export class Court {
     };
     const net = netStrands(pos);
     const build = (mirror) => {
-      // draw order (painter's): assemblies in scene order, or reversed from behind the board; the stanchion's
-      // solids sorted far to near by centroid distance from the camera, exactly the Python's rule
+      // Draw order (painter's). Assemblies 0 stanchion, 1 struts, 2 arm, 3 backboard, 4 bracket, 5 rim + net.
+      // The planes x = -1.376 (rim side of the bracket) and x = BOARD_X (board face) separate them, so which side
+      // the camera is on decides their order exactly; on the court side this is the Python's order. The stanchion's
+      // solids are sorted far to near by centroid distance (the Python's rule).
       const asms = [];
       for (const it of this.scene) {
         if (mirror && !(it.kind === "solid" && it.stan)) continue;
@@ -1150,7 +1330,9 @@ export class Court {
       }
       const dist = (it) => len(sub(mul(it.V.reduce(add, [0, 0, 0]), 1 / it.V.length), pos));
       if (asms[0]) asms[0].sort((a, b) => dist(b) - dist(a));
-      if (pos[0] > BOARD_X + 0.025) asms.reverse();
+      const rimFirst = pos[0] > BASKET_X + RIM_R - 0.005; // camera beyond the bracket's rim end: rim is behind it
+      const hoopEnd = rimFirst ? [5, 4] : [4, 5];
+      const order = pos[0] < BOARD_X ? [0, 1, 2, 3, ...hoopEnd] : [...hoopEnd, 3, 0, 1, 2];
       const draws = [];
       const M = (p) => (mirror ? [p[0], -p[1], p[2]] : p);
       const lineGroup = (segs3, st) => {
@@ -1164,7 +1346,7 @@ export class Court {
         }
         return segs.length ? { segs, st, w: Math.max(st.w * view.k, 0.8) } : null;
       };
-      for (const it of asms.flat()) {
+      for (const it of order.flatMap((i) => asms[i] || [])) {
         const fills = [];
         let group = null;
         if (it.kind === "solid") {
@@ -1225,12 +1407,9 @@ export class Court {
     const gl = this.gl;
     const W = this.canvas.width;
     const H = this.canvas.height;
-    const k = Math.max(W / REF_W, H / REF_H); // cover
     const c = this.cam;
-    const { fwd, right, up } = basis(c.yaw, c.pitch);
-    const f = c.f * k;
-    const cx = W / 2;
-    const cy = H / 2;
+    const { fwd, right, up } = basis(c.yaw, c.pitch, c.roll);
+    const { f, cx, cy, k } = this.intrinsics(c); // k: cover scale (line widths, blur radii)
     const view = { pos: c.pos, fwd, right, up, f, cx, cyg: H - cy, H, k };
 
     // hoop geometry and its screen box (union of the hoop and its reflection, padded for the glow blur)

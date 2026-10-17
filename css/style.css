@@ -60,6 +60,15 @@ body::before {
 html.court #court { display: block; }
 html.court #court.ready { opacity: 1; }
 html.court body::before { background-image: none; }
+/* The swoop (js/main.js playDunk / backToMenu): menu and player cross-fade while the court camera flies; the video
+   area stays empty (the court shows through the bezel) until the camera has landed in the clip's own camera. */
+#menu, #player { transition: opacity 0.5s ease; }
+/* 0.001, not 0: the browser rasterises the layers right away (while the camera is still slow), not mid-flight */
+#menu.fading, #player.fading { opacity: 0.001; pointer-events: none; }
+html.court #frame:not(.landed) .screen { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  #menu, #player { transition: none; }
+}
 
 button { font-family: inherit; }
 /* Saira at width 125 = Saira Expanded */

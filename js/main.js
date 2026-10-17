@@ -1,7 +1,7 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
 import { CLIPS, REAL } from "./clips.js?v=29";
-import { Court } from "./court.js?v=30";
+import { Court, DEFAULT_CAMERA } from "./court.js?v=30";
 import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=29";
 import { LineFX } from "./fx.js?v=29";
 import { Radio } from "./radio.js?v=29";
@@ -21,6 +21,8 @@ const pauseKey = $("#key-pause");
 
 const dock = $("#radio-dock");
 const radio = new Radio(dock);
+let court = null; // live WebGL court (startCourt, at the bottom); null when the static background is used
+let clipCams = null; // per-clip phone cameras (assets/brand/clip_cameras.json)
 
 // VIEW modes. 0 shows the clip itself; 1-2 run the GPU line-art pipeline (js/fx.js).
 const MODES = [
@@ -186,32 +188,122 @@ function showDunks(t) {
   dunkList.hidden = false;
 }
 
+// ---- the swoop: with the live court, picking a dunk flies the background camera into the phone camera the clip
+// was filmed with (assets/brand/clip_cameras.json, Tools/Brand/clip_cameras.py in the Unreal project), framed so
+// the video's box shows exactly that camera's 720x1280 picture. The video appears when the camera lands, so the
+// clip's hoop sits on the 3D hoop and the court around the bezel continues the shot. Back to Menu flies back.
+const SWOOP_MS = 1200;
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+let flight = 0; // id of the latest transition; older ones stop when they see it changed
+
+function clipCamera(key) {
+  const j = court && court.isReady && document.documentElement.classList.contains("court") && clipCams && clipCams[key];
+  if (!j) return null;
+  const im = j.image;
+  return Court.fitCamera(j, { w: im.w, h: im.h, f: im.f_px, cx: im.cx, cy: im.cy }, video);
+}
+// Take an element out of the layout where it is (it keeps its look while it fades), or put it back.
+function pin(el) {
+  if (el.dataset.pinned) return;
+  const r = el.getBoundingClientRect();
+  el.dataset.pinned = "1";
+  Object.assign(el.style, { position: "fixed", left: r.left + "px", top: r.top + "px", width: r.width + "px", margin: "0", zIndex: "3" });
+}
+function unpin(el) {
+  delete el.dataset.pinned;
+  for (const p of ["position", "left", "top", "width", "margin", "zIndex"]) el.style[p] = "";
+}
+function courtState(s) {
+  document.body.dataset.court = s; // "menu" | "flying" | "landed" (tests read it)
+}
+
 function playDunk(d, t) {
+  const key = `${d.key}${t.key}`;
+  const my = ++flight;
   caption.textContent = `${d.label.toUpperCase()} — ${t.label.toUpperCase()}`;
   status.hidden = true;
   frame.classList.remove("ready");
-  video.src = `clips/${d.key}${t.key}.mp4`;
-  loadReal(`${d.key}${t.key}`);
+  video.src = `clips/${key}.mp4`;
+  loadReal(key);
   setSlowMo(false);
-  video.play().catch(() => {});
-  menu.hidden = true;
+  const cam = clipCamera(key);
+  if (!cam) {
+    // no live court (or no camera for this clip): straight cut, as before
+    video.play().catch(() => {});
+    unpin(menu);
+    menu.classList.remove("fading");
+    player.classList.remove("fading");
+    menu.hidden = true;
+    player.hidden = false;
+    frame.classList.add("landed");
+    document.body.classList.add("playing");
+    updateDockSpace();
+    window.scrollTo(0, 0);
+    return;
+  }
+  video.pause(); // starts at frame 0 when the camera lands
+  const ms = reducedMotion.matches ? 0 : SWOOP_MS;
+  // the menu fades where it is; the player is laid out (invisible) right away, so the landing frame is known
+  if (!menu.hidden) pin(menu);
+  menu.classList.add("fading");
+  frame.classList.remove("landed");
+  player.classList.add("fading");
   player.hidden = false;
   document.body.classList.add("playing");
   updateDockSpace();
   window.scrollTo(0, 0);
+  courtState("flying");
+  setTimeout(() => my === flight && player.classList.remove("fading"), ms * 0.45); // fades in as it lands
+  court.animateTo(cam, ms, "inOutCubic").then((done) => {
+    if (!done || my !== flight) return;
+    unpin(menu);
+    menu.hidden = true;
+    menu.classList.remove("fading");
+    player.classList.remove("fading");
+    frame.classList.add("landed");
+    courtState("landed");
+    video.currentTime = 0;
+    video.play().catch(() => {});
+  });
 }
 
 function backToMenu() {
+  const my = ++flight;
   video.pause();
   video.removeAttribute("src");
   video.load();
   loadReal(null);
-  player.hidden = true;
-  menu.hidden = false;
-  document.body.classList.remove("playing");
-  updateDockSpace();
-  window.scrollTo(0, 0);
-  showDunks(takeoff);
+  const toMenu = () => {
+    if (my !== flight) return;
+    unpin(menu);
+    player.hidden = true;
+    player.classList.remove("fading");
+    menu.hidden = false;
+    document.body.classList.remove("playing");
+    updateDockSpace();
+    window.scrollTo(0, 0);
+    showDunks(takeoff);
+  };
+  if (!(court && court.isReady && document.documentElement.classList.contains("court"))) {
+    menu.classList.remove("fading");
+    toMenu();
+    return;
+  }
+  // the video goes (the court behind it is the same view), the player fades, the camera flies back to the menu
+  // view and the menu fades in as it arrives
+  const ms = reducedMotion.matches ? 0 : SWOOP_MS;
+  frame.classList.remove("landed");
+  player.classList.add("fading");
+  courtState("flying");
+  const showMenu = () => {
+    toMenu();
+    if (my !== flight) return;
+    menu.classList.add("fading");
+    requestAnimationFrame(() => requestAnimationFrame(() => my === flight && menu.classList.remove("fading")));
+  };
+  if (ms) setTimeout(showMenu, ms * 0.35);
+  else showMenu();
+  court.animateTo(DEFAULT_CAMERA, ms, "inOutCubic").then((done) => done && my === flight && courtState("menu"));
 }
 
 // Reveal the video once it has a real frame (avoids a flash of the wrong size).
@@ -361,23 +453,30 @@ document.fonts.ready.then(placeTips);
 //   ?court=cam                 logs the camera after every change and flies it with the keyboard: arrows turn,
 //                              I/K forward/back, J/L left/right, U/O down/up, [ ] zoom, 0 reset (Shift = 5x)
 //   ?court=off                 the static background.jpg instead
+//   body[data-court]           "menu" | "flying" | "landed": the swoop's state (see playDunk)
 function startCourt() {
   const root = document.documentElement;
   if (!root.classList.contains("court")) return;
   const canvas = $("#court");
-  let court;
   try {
     court = new Court(canvas);
   } catch (e) {
     console.warn("Live court unavailable, using the static background:", e);
     root.classList.remove("court");
+    court = null;
     return;
   }
   window.__court = court;
+  courtState("menu");
   court.ready.catch((e) => {
     console.warn("Live court failed to start, using the static background:", e);
     root.classList.remove("court");
+    court = null;
   });
+  fetch("assets/brand/clip_cameras.json?v=30")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => (clipCams = j))
+    .catch(() => {}); // no cameras: dunks open with a cut, as without the court
   court.onLost = () => root.classList.remove("court");
   court.onRestored = () => root.classList.add("court");
   const camDebug = new URLSearchParams(location.search).get("court") === "cam";
@@ -387,7 +486,8 @@ function startCourt() {
     if (!camDebug || court.anim) return;
     const c = court.getCamera();
     const r = (v) => Math.round(v * 1000) / 1000;
-    const line = `__court.setCamera({ pos: [${c.pos.map(r).join(", ")}], yaw: ${r(c.yaw)}, pitch: ${r(c.pitch)}, f: ${r(c.f)} })`;
+    const line = `__court.setCamera({ pos: [${c.pos.map(r).join(", ")}], yaw: ${r(c.yaw)}, pitch: ${r(c.pitch)}, roll: ${r(c.roll)}, ` +
+      `f: ${r(c.f)}, pp: [${c.pp.map(r).join(", ")}] })${c.fit ? " // fitted to the video" : ""}`;
     if (line !== logged) console.log((logged = line));
   };
   if (camDebug) {
@@ -404,7 +504,7 @@ function startCourt() {
         KeyI: () => move(fwd, 1), KeyK: () => move(fwd, -1), KeyJ: () => move(right, -1), KeyL: () => move(right, 1),
         KeyU: () => move([0, 1, 0], -1), KeyO: () => move([0, 1, 0], 1),
         BracketLeft: () => (c.f /= 1.05 ** s), BracketRight: () => (c.f *= 1.05 ** s),
-        Digit0: () => Object.assign(c, { pos: [-9.78, 1.73, 9.35], yaw: 18.55, pitch: 3.85, f: 1781 }),
+        Digit0: () => Object.assign(c, { ...DEFAULT_CAMERA, pos: [...DEFAULT_CAMERA.pos], roll: 0, pp: [0, 0], fit: null }),
       };
       if (!keys[e.code]) return;
       e.preventDefault();

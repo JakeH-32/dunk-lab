@@ -34,9 +34,17 @@ corner. This is the browser version of my Unreal Engine 5 class project. It runs
   hoop is 3D line art drawn with the painter's algorithm. The scene is static and renders only on
   resize or while the camera moves. `assets/brand/kit/background.jpg` is the fallback when there is
   no GPU, WebGL2 or context.
-  - `window.__court`: `getCamera()`, `setCamera({ pos: [x, y, z], yaw, pitch, f | fovY })`,
-    `animateTo(cam, ms, ease, { arc, via })` (returns a Promise) and `bench(n)` (ms per frame).
-    `f` is in px for a 2560 px wide frame; the default is `pos [-9.78, 1.73, 9.35], yaw 18.55, pitch 3.85, f 1781`.
+  - **Swoop:** picking a dunk flies the camera into the phone camera the clip was filmed with
+    (`assets/brand/clip_cameras.json`, made by `Tools/Brand/clip_cameras.py` in the Unreal project and
+    copied by `tools/sync_assets.py`). The camera is framed so the video's box shows exactly that
+    camera's 720×1280 picture, so the clip's hoop lands on the 3D hoop and the court around the bezel
+    continues the shot. The video appears when the camera lands. Back to Menu flies back.
+    With `prefers-reduced-motion` it cuts instead.
+  - `window.__court`: `getCamera()`, `setCamera({ pos: [x, y, z], yaw, pitch, roll, f | fovY, pp })`,
+    `animateTo(cam, ms, ease, { via, arc, orient })` (returns a Promise), `Court.fitCamera(cam, image, element)`
+    (frames a pinhole image inside an element) and `bench(n)` (ms per frame).
+    `f` and `pp` are in px of a 2560×1440 frame shown like `cover`. The default is
+    `pos [-9.78, 1.73, 9.35], yaw 18.55, pitch 3.85, f 1781`.
   - `?court=cam`: logs the camera after every change. Arrows turn, I/K/J/L/U/O move, `[` `]` zoom,
     0 resets, and Shift moves 5x. `?court=off` shows the static image.
 

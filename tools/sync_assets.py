@@ -9,7 +9,7 @@ Run again whenever clips, songs or art change in the Unreal project:
 - Sounds: <unreal>/Audio/UI/*.wav                        -> assets/audio/ui/
 - Art:    ChatGPT's PNGs in <unreal>/Inbox               -> assets/ui/ (icons), assets/radio/
 - Brand:  <unreal>/Tools/Brand/final (logo, monogram, icons, kit/) -> assets/brand/, plus the 1200x630
-  share image assets/brand/og.jpg
+  share image assets/brand/og.jpg, and the per-clip cameras final/clip_cameras.json -> assets/brand/
   Big opaque images become JPEG and big transparent ones WebP, so phones load quickly.
 Also writes js/clips.js, the list of clips that exist (the menu greys out the rest).
 """
@@ -88,6 +88,11 @@ for n in ["card_normal", "card_hover", "card_pressed", "key_normal", "key_hover"
           "screen_bezel", "pill", "divider"]:
     image(os.path.join(BRAND_KIT, n + ".png"), "assets/brand/kit", n)
 copy(os.path.join(BRAND_KIT, "layout.json"), "assets", "brand", "kit", "layout.json")
+# Per-clip phone cameras (Tools/Brand/clip_cameras.py): the live court swoops into them when a dunk is picked.
+with open(os.path.join(BRAND, "clip_cameras.json"), encoding="utf-8") as f:
+    cams = json.load(f)
+with open(out("assets", "brand", "clip_cameras.json"), "w", encoding="utf-8", newline="\n") as f:
+    json.dump(cams, f, separators=(",", ":"))
 
 
 def og_image():
