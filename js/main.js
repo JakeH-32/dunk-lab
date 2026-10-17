@@ -1,10 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS, REAL } from "./clips.js?v=27";
-import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=27";
-import { LineFX } from "./fx.js?v=27";
-import { Radio } from "./radio.js?v=27";
-import { play, unlock } from "./sound.js?v=27";
+import { CLIPS, REAL } from "./clips.js?v=28";
+import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=28";
+import { LineFX } from "./fx.js?v=28";
+import { Radio } from "./radio.js?v=28";
+import { play, unlock } from "./sound.js?v=28";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -24,14 +24,14 @@ const radio = new Radio(dock);
 // VIEW modes. 0 shows the clip itself; 1-2 run the GPU line-art pipeline (js/fx.js).
 const MODES = [
   { label: "LINE ART", title: "LINE ART", text: "The dunk traced as line art. Press VIEW to see how the GPU reads the lines." },
-  { label: "DISTANCE", title: "DISTANCE VIEW", text: "A Euclidean distance field, rebuilt every frame with the Jump Flooding Algorithm. Isolines every 8 px; the bright seams trace the medial axis." },
-  { label: "RE-STROKE", title: "RE-STROKE VIEW", text: "Strokes re-rendered from the distance field, with sub-pixel ridge fitting for a uniform, anti-aliased width and a controlled bloom." },
-  { label: "GRASSFIRE", title: "GRASSFIRE VIEW", text: "Blum's grassfire transform: fronts spread from every line at unit speed and flare where they collide, along the medial axis." },
-  { label: "CHROME", title: "CHROME VIEW", text: "The distance field treated as a height field: gradient normals and specular environment shading turn each stroke into a chrome tube." },
-  { label: "TRAILS", title: "TRAILS VIEW", text: "Temporal accumulation in a decaying feedback buffer, with motion found by matching each line to its nearest line in the previous frame." },
-  { label: "SPEED", title: "SPEED VIEW", text: "Per-pixel motion magnitude from frame-to-frame line correspondence, mapped to a heat ramp: blue at rest, then cyan and white, orange at peak speed." },
+  { label: "DISTANCE", title: "DISTANCE VIEW", text: "A distance field: every pixel knows how far it is from the nearest line, rebuilt each frame on the GPU with jump flooding. Rings are 8 px apart." },
+  { label: "RE-STROKE", title: "RE-STROKE VIEW", text: "The lines redrawn from the distance field instead of copied from the video, so every stroke gets the same clean width and glow." },
+  { label: "GRASSFIRE", title: "GRASSFIRE VIEW", text: "The distance field as a wave: fronts spread out from every line at the same speed and light up where they meet." },
+  { label: "CHROME", title: "CHROME VIEW", text: "The distance field used as a height map, so each line becomes a shaded 3D tube with chrome reflections." },
+  { label: "TRAILS", title: "TRAILS VIEW", text: "Moving lines leave fading trails. Motion comes from matching each line to the closest line in the previous frame." },
+  { label: "SPEED", title: "SPEED VIEW", text: "Lines coloured by how fast they move, measured frame to frame: blue is still, cyan and white are faster, orange is fastest." },
 ];
-const SLOWMO_NOTE = "Slow-mo: in-between frames are synthesized on the GPU by advecting line seeds toward their next positions and re-flooding the field.";
+const SLOWMO_NOTE = "Slow-mo: the GPU makes the in-between frames itself, sliding each line toward its next position.";
 let mode = 0;
 let fx = null;
 try {
