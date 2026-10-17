@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- iOS Safari otherwise turns radio text such as "HANG TIME 91 / 91.5" into underlined phone/address links -->
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
   <title>Dunk Lab</title>
   <meta name="description" content="Dunk Lab: pick a takeoff and a dunk, watch it as line art, with a retro car radio.">
   <meta name="theme-color" content="#0C0E11">
@@ -27,7 +29,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto:wght@700&family=Saira:ital,wdth,wght@0,125,500;0,125,600;1,125,600;1,125,700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <link rel="preload" as="image" href="assets/brand/logo_metal.png">
-  <link rel="stylesheet" href="css/style.css?v=21">
+  <link rel="stylesheet" href="css/style.css?v=22">
 </head>
 <body>
   <main id="app">
@@ -63,6 +65,7 @@
       </div>
       <div class="controls">
         <button type="button" class="key" id="key-view"><i class="icon i-view"></i><span id="view-label">VIEW: LINE ART</span></button>
+        <button type="button" class="key" id="key-orig" hidden><i class="icon i-view"></i>ORIGINAL</button>
         <button type="button" class="key" id="key-slow"><i class="icon i-slow"></i><span class="long">SLOW-MO: </span><span class="short">SLOW </span><span id="slow-state">OFF</span></button>
         <button type="button" class="key" id="key-replay"><i class="icon i-replay"></i>REPLAY</button>
         <button type="button" class="key" id="key-pause"><i class="icon i-pause"></i><i class="icon i-play"></i><span class="l-pause">PAUSE</span><span class="l-play">PLAY</span></button>
@@ -73,6 +76,6 @@
 
   <div id="radio-dock"></div>
 
-  <script type="module" src="js/main.js?v=21"></script>
+  <script type="module" src="js/main.js?v=22"></script>
 </body>
 </html>

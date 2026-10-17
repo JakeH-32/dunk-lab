@@ -201,8 +201,10 @@ button { font-family: inherit; }
 .i-play { -webkit-mask-image: url(../assets/ui/icon_play.png); mask-image: url(../assets/ui/icon_play.png); }
 .i-view { -webkit-mask-image: url(../assets/ui/icon_view.png); mask-image: url(../assets/ui/icon_view.png); width: 17px; }
 .i-slow { -webkit-mask-image: url(../assets/ui/icon_play.png); mask-image: url(../assets/ui/icon_play.png); transform: scaleX(0.75); }
-#key-slow.on { color: var(--gold-light); }
-#key-slow.on .icon { background: var(--gold-light); }
+#key-slow.on, #key-orig.on { color: var(--gold-light); }
+#key-slow.on .icon, #key-orig.on .icon { background: var(--gold-light); }
+/* ORIGINAL key: phones only (desktop has the slider); shown by loadReal for clips with real footage */
+#key-orig, #key-orig[hidden] { display: none; }
 #explain em { display: block; margin-top: 8px; color: var(--gold-light); font: normal 500 13px/1.45 Inter, sans-serif; }
 .i-back { -webkit-mask-image: url(../assets/ui/icon_back.png); mask-image: url(../assets/ui/icon_back.png); }
 .i-chevron { width: 18px; height: 18px; background: var(--gold); -webkit-mask-image: url(../assets/ui/icon_chevron.png); mask-image: url(../assets/ui/icon_chevron.png); }
@@ -433,17 +435,17 @@ button { font-family: inherit; }
   justify-content: center;
   padding: 0;
   border: 0;
-  background: url(../assets/radio/key_normal.png) center / 100% 100% no-repeat;
+  background: url(../assets/radio/key_normal.png?v=22) center / 100% 100% no-repeat;
   color: rgba(225, 235, 255, 0.45);
   font: 700 2.3cqw Roboto, sans-serif;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   cursor: pointer;
 }
 .rkey::after { content: ""; position: absolute; inset: -40% -8%; } /* larger hit area than the drawn key */
-.rkey:active { background-image: url(../assets/radio/key_pressed.png); }
+.rkey:active { background-image: url(../assets/radio/key_pressed.png?v=22); }
 .rkey:active span { transform: translateY(1px); }
-.rkey.small { background-image: url(../assets/radio/small_key_normal.png); color: #cdd6e4; font-size: 2.4cqw; }
-.rkey.small:active { background-image: url(../assets/radio/small_key_pressed.png); }
+.rkey.small { background-image: url(../assets/radio/small_key_normal.png?v=22); color: #cdd6e4; font-size: 2.4cqw; }
+.rkey.small:active { background-image: url(../assets/radio/small_key_pressed.png?v=22); }
 .rkey.preset.active { color: #f4f8ff; }
 .rkey.power span { font-size: 1.2cqw; letter-spacing: 0; }
 .rkey .led {
@@ -544,6 +546,9 @@ button { font-family: inherit; }
   body.playing .key .icon { width: 12px; height: 12px; }
   body.playing .vp, body.playing #key-view .icon, body.playing #key-slow .icon { display: none; }
   body.playing #key-slow { grid-column: auto; }
+  body.playing #key-orig:not([hidden]) { display: inline-flex; }
+  body.playing .controls:has(#key-orig:not([hidden])) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  body.playing #key-orig .icon { display: none; }
   body.playing #explain { grid-area: 2 / 1; justify-self: center; margin-top: 14px; }
 }
 
@@ -640,3 +645,6 @@ button { font-family: inherit; }
 @media (max-width: 1099px) {
   #slide-hint { display: none !important; }
 }
+
+/* iOS data detectors (if any slip through): never style radio/station text as links */
+a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font: inherit !important; }
