@@ -29,7 +29,7 @@ let clipCams = null; // per-clip phone cameras (assets/brand/clip_cameras.json)
 // cutout for the clip, otherwise it is skipped); 1 shows the line-art clip itself; 2+ run the GPU line-art pipeline
 // (js/fx.js, whose mode is ours minus one).
 const MODES = [
-  { label: "3D", title: "3D COURT", text: "You, cut out of the real footage with a segmentation model and composited into the live 3D court from the exact camera that filmed you." },
+  { label: "ON COURT", title: "ON COURT", text: "You, cut out of the real footage with a segmentation model and composited into the live 3D court from the exact camera that filmed you." },
   { label: "LINE ART", title: "LINE ART", text: "The dunk traced as line art. Press VIEW to see how the GPU reads the lines." },
   { label: "DISTANCE", title: "DISTANCE VIEW", text: "A distance field: every pixel knows how far it is from the nearest line, rebuilt each frame on the GPU with jump flooding. Rings are 8 px apart." },
   { label: "RE-STROKE", title: "RE-STROKE VIEW", text: "The lines redrawn from the distance field instead of copied from the video, so every stroke gets the same clean width and glow." },
@@ -251,7 +251,7 @@ function playDunk(d, t) {
   if (cutoutLayer) cutoutLayer.setActive(false);
   loadReal(key);
   setSlowMo(false);
-  setMode(packed ? 0 : mode === 0 ? 1 : mode); // 3D is the default when it's there
+  setMode(packed ? 0 : mode === 0 ? 1 : mode); // ON COURT is the default when it's there
   if (!cam) {
     // no live court (or no camera for this clip): straight cut, as before
     video.play().catch(() => {});
