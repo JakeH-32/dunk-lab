@@ -39,7 +39,7 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: var(--graphite) url(../assets/brand/kit/background.jpg) center / cover no-repeat;
+  background: var(--graphite) url(../assets/brand/kit/background.jpg?v=26) center / cover no-repeat;
 }
 
 button { font-family: inherit; }
