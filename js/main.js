@@ -1,10 +1,10 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS, REAL } from "./clips.js?v=24";
-import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=24";
-import { LineFX } from "./fx.js?v=24";
-import { Radio } from "./radio.js?v=24";
-import { play, unlock } from "./sound.js?v=24";
+import { CLIPS, REAL } from "./clips.js?v=25";
+import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=25";
+import { LineFX } from "./fx.js?v=25";
+import { Radio } from "./radio.js?v=25";
+import { play, unlock } from "./sound.js?v=25";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -70,6 +70,9 @@ const detailsHint = $("#details-hint");
 detailsHint.hidden = !fx;
 detailsHint.addEventListener("click", () => $("#explain").scrollIntoView({ behavior: "smooth", block: "center" }));
 addEventListener("scroll", () => detailsHint.classList.toggle("gone", scrollY > 40), { passive: true });
+// No page zoom on phones (it was easy to double-tap-zoom while pressing keys and get stuck zoomed in). The viewport meta
+// and touch-action handle most browsers; iOS Safari ignores user-scalable=no for pinches, so cancel its gesture events.
+for (const type of ["gesturestart", "gesturechange"]) document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
 $("#key-view").addEventListener("click", () => setMode((mode + 1) % MODES.length));
 sfxOn($("#key-view"), "select");
 $("#key-slow").addEventListener("click", () => setSlowMo(!slowMo));

@@ -23,7 +23,7 @@ html {
   overflow-x: clip; /* hover popups never widen the page */
 }
 
-html { background: var(--graphite); }
+html { background: var(--graphite); touch-action: manipulation; } /* no double-tap zoom: quick taps on keys used to zoom the page in */
 html, body {
   margin: 0;
   min-height: 100%;
@@ -546,6 +546,36 @@ button { font-family: inherit; }
   body.playing .key .icon { width: 12px; height: 12px; }
   body.playing .vp, body.playing #key-view .icon, body.playing #key-slow .icon { display: none; }
   body.playing #key-slow { grid-column: auto; }
+  /* Replay and pause/play: round icon-only buttons floating above the row (everyone reads those symbols), so the
+     remaining three keys get the width for readable labels. Rows: icons, DETAILS BELOW, keys. */
+  body.playing .controls { grid-template-columns: repeat(6, minmax(0, 1fr)); row-gap: 6px; }
+  body.playing #key-replay, body.playing #key-pause {
+    grid-row: 1;
+    justify-self: center;
+    width: 52px;
+    height: 52px;
+    min-height: 0;
+    padding: 0;
+    border: 1px solid rgba(203, 182, 138, 0.55);
+    border-image: none;
+    border-image-source: none !important;
+    border-radius: 50%;
+    background: rgba(12, 14, 17, 0.6);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+    font-size: 0; /* icon only */
+    -webkit-text-stroke: 0;
+  }
+  body.playing #key-replay { grid-column: 3; }
+  body.playing #key-pause { grid-column: 4; }
+  body.playing #key-replay .icon, body.playing #key-pause .icon { width: 22px; height: 22px; }
+  body.playing #key-replay:active, body.playing #key-pause:active { border-color: var(--gold); background: rgba(203, 182, 138, 0.18); }
+  body.playing #details-hint:not([hidden]) { grid-row: 2; }
+  body.playing #key-view, body.playing #key-slow, body.playing #key-back { grid-row: 3; font-size: 11px; letter-spacing: 0.06em; min-height: 44px; }
+  body.playing #key-view { grid-column: 1 / span 2; }
+  body.playing #key-slow { grid-column: 3 / span 2; }
+  body.playing #key-back { grid-column: 5 / span 2; }
   body.playing #details-hint:not([hidden]) {
     display: flex;
     grid-column: 1 / -1;
