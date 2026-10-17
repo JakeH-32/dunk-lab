@@ -5,9 +5,15 @@
 // Motion: each new video frame keeps the previous frame's field. The nearest previous line to a line point
 // is how far it moved (normal flow): Speed colours lines by it, Trails accumulate moving lines in a fading
 // feedback buffer, and slow motion builds in-between fields by sliding seeds part of the way and re-flooding.
-// Fields store integer texel coordinates packed into RGBA8 (2 bytes per axis), because rendering to float
-// textures isn't reliable on phones; 65535 means "no line". The video is uploaded as sRGB so the maths runs
-// in linear light, like Unreal.
+// Fields store texel coordinates in 1/32 px fixed point packed into RGBA8 (2 bytes per axis), because rendering
+// to float textures isn't reliable on phones; 65535 (all bytes 255) means "no line". The video is uploaded as
+// sRGB so the maths runs in linear light, like Unreal.
+//
+// Phones show the field at about 1:1 (a 720 px clip across a 360-430 pt screen at 2x), while desktop windows
+// shrink it to about half, which hides single-pixel faults. So the seed pass drops the faint maxima on a line's
+// flank and stores each seed at its sub-pixel ridge centre; before, those flank seeds and whole-pixel positions
+// showed on phones as jagged strokes with little ticks and dots. Debug: ?fxdpr=2 (any number) in the URL renders the
+// canvas at that pixel ratio instead of min(devicePixelRatio, 2), e.g. to see phone-like 1:1 output on desktop.
 
 const VS = `#version 300 es
 in vec2 p;
@@ -16,28 +22,58 @@ void main() { gl_Position = vec4(p, 0.0, 1.0); }`;
 const COMMON = `#version 300 es
 precision highp float;
 precision highp int;
+precision highp sampler2D; // samplers default to lowp in GLSL ES, and phone GPUs honour it
 out vec4 o;
-vec4 enc(vec2 s) { s = floor(s + 0.5); return vec4(floor(s.x / 256.0), mod(s.x, 256.0), floor(s.y / 256.0), mod(s.y, 256.0)) / 255.0; }
-vec2 dec(vec4 t) { vec4 b = floor(t * 255.0 + 0.5); return vec2(b.x * 256.0 + b.y, b.z * 256.0 + b.w); }
+const float FIX = 32.0;    // field coordinates are stored in 1/32 px
+const float NONE = 2000.0; // decoded coordinates above this mean "no line" (65535 / 32 = 2048)
+vec4 enc(vec2 s) { s = floor(s * FIX + 0.5); return vec4(floor(s.x / 256.0), mod(s.x, 256.0), floor(s.y / 256.0), mod(s.y, 256.0)) / 255.0; }
+vec2 dec(vec4 t) { vec4 b = floor(t * 255.0 + 0.5); return vec2(b.x * 256.0 + b.y, b.z * 256.0 + b.w) / FIX; }
+// Ridge fit on a 3x3 neighbourhood v (row-major, v[4] = centre): unit normal n across the line, its curvature
+// kc (negative on a bright line) and the offset along n to the ridge centre, clamped to under half a pixel
+// (with room for the 1/32 px rounding) so the seed's nearest pixel stays its own.
+void ridgeFit(float v[9], out vec2 n, out float off, out float kc) {
+  float gx = 0.5 * (v[5] - v[3]);
+  float gy = 0.5 * (v[7] - v[1]);
+  float hxx = v[5] - 2.0 * v[4] + v[3];
+  float hyy = v[7] - 2.0 * v[4] + v[1];
+  float hxy = 0.25 * (v[8] - v[2] - v[6] + v[0]);
+  float phi = 0.5 * atan(2.0 * hxy, hxx - hyy + 1e-6) + 1.5707963;
+  n = vec2(cos(phi), sin(phi));
+  kc = n.x * n.x * hxx + 2.0 * n.x * n.y * hxy + n.y * n.y * hyy;
+  off = (kc < -1e-4) ? -(gx * n.x + gy * n.y) / min(kc, -1e-4) : 0.0;
+  off = clamp(off, -0.45, 0.45);
+}
 `;
 
 const SEED = COMMON + `
 uniform sampler2D uVideo;
 uniform vec2 uRes;
-float lum(vec2 uv) { vec3 t = textureLod(uVideo, uv, 0.0).rgb; return sqrt(max(max(t.r, t.g), t.b)); }
+float lum(ivec2 q) { vec3 t = texelFetch(uVideo, clamp(q, ivec2(0), ivec2(uRes) - 1), 0).rgb; return sqrt(max(max(t.r, t.g), t.b)); }
 void main() {
   const float kContrast = 0.07;
-  vec2 p = floor(gl_FragCoord.xy);
-  vec2 d = 1.0 / uRes;
-  vec2 uv = (p + 0.5) * d;
-  float sNW = lum(uv + vec2(-1.0, -1.0) * d), sN = lum(uv + vec2(0.0, -1.0) * d), sNE = lum(uv + vec2(1.0, -1.0) * d);
-  float sW  = lum(uv + vec2(-1.0,  0.0) * d), c  = lum(uv),                      sE  = lum(uv + vec2(1.0,  0.0) * d);
-  float sSW = lum(uv + vec2(-1.0,  1.0) * d), sS = lum(uv + vec2(0.0,  1.0) * d), sSE = lum(uv + vec2(1.0,  1.0) * d);
-  bool ridge = (c > sW  && c >= sE  && c - min(sW,  sE)  >= kContrast)
-            || (c > sN  && c >= sS  && c - min(sN,  sS)  >= kContrast)
-            || (c > sNW && c >= sSE && c - min(sNW, sSE) >= kContrast)
-            || (c > sSW && c >= sNE && c - min(sSW, sNE) >= kContrast);
-  o = (ridge && c >= 0.1) ? enc(p) : vec4(1.0);
+  const float kSlope = 0.75;
+  ivec2 ip = ivec2(gl_FragCoord.xy);
+  float v[9];
+  for (int j = 0; j < 3; j++)
+  for (int i = 0; i < 3; i++) v[j * 3 + i] = lum(ip + ivec2(i - 1, j - 1));
+  float c = v[4];
+  // ridge: a local maximum along any of the 4 axes (prom = how far it stands above both neighbours there)
+  bool ridge = false;
+  float prom = 0.0, top = c;
+  for (int k = 0; k < 4; k++) {
+    float a = k == 0 ? v[3] : k == 1 ? v[1] : k == 2 ? v[0] : v[6];
+    float b = k == 0 ? v[5] : k == 1 ? v[7] : k == 2 ? v[8] : v[2];
+    if (c > a && c >= b && c - min(a, b) >= kContrast) { ridge = true; prom = max(prom, c - max(a, b)); }
+    top = max(top, max(a, b));
+  }
+  // Thin anti-aliased lines brighten and dim as they cross the pixel grid, so the faint fringe beside a line
+  // has small maxima along it. Those sit on the slope up to the line (a neighbour far brighter than the bump
+  // is high) and drew as ticks and dots: a seed must stand out more than it is overshadowed.
+  bool peak = prom >= kSlope * (top - c);
+  vec2 n; float off, kc;
+  ridgeFit(v, n, off, kc);
+  // stored at the sub-pixel ridge centre, so distances (and every view built on them) are smooth, not stepped
+  o = (ridge && peak && c >= 0.1) ? enc(vec2(ip) + off * n) : vec4(1.0);
 }`;
 
 const STEP = COMMON + `
@@ -55,7 +91,7 @@ void main() {
     if (q.x < 0 || q.y < 0 || q.x >= uSize.x || q.y >= uSize.y) continue;
     vec4 t = texelFetch(uField, q, 0);
     vec2 s = dec(t);
-    if (s.x > 65000.0) continue;
+    if (s.x > NONE) continue;
     vec2 r = pf - s;
     float dd = dot(r, r);
     if (dd < best) { best = dd; bestT = t; }
@@ -67,8 +103,8 @@ const COPY = COMMON + `
 uniform sampler2D uSrc;
 void main() { o = texelFetch(uSrc, ivec2(gl_FragCoord.xy), 0); }`;
 
-// In-between seeds (motion/seed_interp.hlsl). Stored coordinates can be fractional; they're rounded to the
-// texel grid when packed, which is plenty for display.
+// In-between seeds (motion/seed_interp.hlsl). Seeds slide from their own sub-pixel positions, and the moved
+// positions keep 1/32 px precision.
 const INTERP = COMMON + `
 uniform sampler2D uPrev;
 uniform sampler2D uCur;
@@ -79,19 +115,19 @@ void main() {
   vec2 pf = vec2(p);
   vec2 sp = dec(texelFetch(uPrev, p, 0));
   vec2 sc = dec(texelFetch(uCur, p, 0));
-  bool prevLine = sp.x < 65000.0 && all(lessThan(abs(sp - pf), vec2(0.5)));
-  bool curLine = sc.x < 65000.0 && all(lessThan(abs(sc - pf), vec2(0.5)));
+  bool prevLine = sp.x < NONE && all(lessThan(abs(sp - pf), vec2(0.5)));
+  bool curLine = sc.x < NONE && all(lessThan(abs(sc - pf), vec2(0.5)));
   // unmatched points (big jumps, appearing/disappearing lines) cut over at the midpoint instead of double-exposing
   o = vec4(1.0);
   if (prevLine) {
-    vec2 v = sc.x < 65000.0 ? sc - pf : vec2(1e4);
-    if (dot(v, v) <= kMaxMove * kMaxMove) { o = enc(pf + uBlend * v); return; }
-    if (uBlend < 0.5) { o = enc(pf); return; }
+    vec2 v = sc.x < NONE ? sc - sp : vec2(1e4);
+    if (dot(v, v) <= kMaxMove * kMaxMove) { o = enc(sp + uBlend * v); return; }
+    if (uBlend < 0.5) { o = enc(sp); return; }
   }
   if (curLine) {
-    vec2 v = sp.x < 65000.0 ? sp - pf : vec2(1e4);
-    if (dot(v, v) <= kMaxMove * kMaxMove) { o = enc(pf + (1.0 - uBlend) * v); return; }
-    if (uBlend >= 0.5) { o = enc(pf); return; }
+    vec2 v = sp.x < NONE ? sp - sc : vec2(1e4);
+    if (dot(v, v) <= kMaxMove * kMaxMove) { o = enc(sc + (1.0 - uBlend) * v); return; }
+    if (uBlend >= 0.5) { o = enc(sc); return; }
   }
 }`;
 
@@ -113,10 +149,10 @@ void main() {
   vec2 pf = vec2(p);
   vec3 old = max(texelFetch(uTrailIn, p, 0).rgb * 0.82 - 1.0 / 255.0, 0.0);
   vec2 sc = dec(texelFetch(uCur, p, 0));
-  if (sc.x > 65000.0) { o = vec4(old, 1.0); return; }
+  if (sc.x > NONE) { o = vec4(old, 1.0); return; }
   float cov = clamp(2.0 - length(pf - sc), 0.0, 1.0);
   vec2 sp = dec(texelFetch(uPrev, clamp(ivec2(sc + 0.5), ivec2(0), uSize - 1), 0));
-  float spd = sp.x > 65000.0 ? 0.0 : min(length(sc - sp), 24.0);
+  float spd = sp.x > NONE ? 0.0 : min(length(sc - sp), 24.0);
   vec3 c = speedColor(clamp(spd / 12.0, 0.0, 1.0));
   o = vec4(max(old, c * (cov * smoothstep(2.0, 7.0, spd))), 1.0);
 }`;
@@ -150,7 +186,7 @@ vec3 shade() {
     ivec2 q = clamp(b + ivec2(k & 1, k >> 1), ivec2(0), hi);
     vec2 f = field(uField, q);
     vec2 r = x - f;
-    float dd = (f.x > 65000.0) ? 1e10 : dot(r, r);
+    float dd = (f.x > NONE) ? 1e10 : dot(r, r);
     S[k] = f; D2[k] = dd;
     if (dd < best) { best = dd; s = f; }
   }
@@ -162,32 +198,25 @@ vec3 shade() {
   vec2 nrm = vec2(0.0);
   vec2 cp = s;
   if (d < L + 2.5 && !uSlowMo) {
-    vec2 ts = 1.0 / uRes;
-    vec2 su = (s + 0.5) * ts;
+    // refit at the seed's own pixel (seeds sit within half a pixel of it): same fit as the seed pass, so the
+    // fitted point is the stored seed, and the stroke also extends L along the line between seeds
+    ivec2 sp = clamp(ivec2(floor(s + 0.5)), ivec2(0), hi);
     float v[9];
     for (int j = 0; j < 3; j++)
     for (int i = 0; i < 3; i++) {
-      vec3 c = textureLod(uVideo, su + vec2(float(i - 1), float(j - 1)) * ts, 0.0).rgb;
+      vec3 c = texelFetch(uVideo, clamp(sp + ivec2(i - 1, j - 1), ivec2(0), hi), 0).rgb;
       v[j * 3 + i] = sqrt(max(c.r, max(c.g, c.b)));
     }
-    float gx = 0.5 * (v[5] - v[3]);
-    float gy = 0.5 * (v[7] - v[1]);
-    float hxx = v[5] - 2.0 * v[4] + v[3];
-    float hyy = v[7] - 2.0 * v[4] + v[1];
-    float hxy = 0.25 * (v[8] - v[2] - v[6] + v[0]);
-    float phi = 0.5 * atan(2.0 * hxy, hxx - hyy + 1e-6) + 1.5707963;
-    vec2 n = vec2(cos(phi), sin(phi));
-    float kc = n.x * n.x * hxx + 2.0 * n.x * n.y * hxy + n.y * n.y * hyy;
-    float off = (kc < -1e-4) ? -(gx * n.x + gy * n.y) / min(kc, -1e-4) : 0.0;
-    off = clamp(off, -1.0, 1.0);
-    vec2 rr = x - (s + off * n);
+    vec2 n; float off, kc;
+    ridgeFit(v, n, off, kc);
+    vec2 rr = x - (vec2(sp) + off * n);
     float perp = abs(dot(rr, n));
     float alng = rr.y * n.x - rr.x * n.y;
     float along = abs(alng);
     float dr = sqrt(perp * perp + max(along - L, 0.0) * max(along - L, 0.0));
     float wb = smoothstep(L + 1.0, L + 2.5, d);
     ds = mix(dr, d, wb);
-    vec2 qp = s + off * n + clamp(alng, -L, L) * vec2(-n.y, n.x);
+    vec2 qp = vec2(sp) + off * n + clamp(alng, -L, L) * vec2(-n.y, n.x);
     cp = mix(qp, s, wb);
     nrm = n;
   }
@@ -247,7 +276,7 @@ vec3 shade() {
     for (int k3 = 0; k3 < 4; k3++) {
       vec2 f2 = field(uField, clamp(bs + ivec2(k3 & 1, k3 >> 1), ivec2(0), hi));
       vec2 r2 = xs - f2;
-      b2 = min(b2, (f2.x > 65000.0) ? 1e10 : dot(r2, r2));
+      b2 = min(b2, (f2.x > NONE) ? 1e10 : dot(r2, r2));
     }
     float shadow = 0.7 * (1.0 - smoothstep(R, R + 6.0, sqrt(b2)));
     float ao = 1.0 - 0.6 * exp(-max(ds - R, 0.0) / 2.5);
@@ -273,7 +302,7 @@ vec3 shade() {
   }
   // SPEED: lines coloured by how far they moved since the previous frame
   vec2 pv = field(uPrev, clamp(ivec2(s + 0.5), ivec2(0), hi));
-  float spd = (pv.x > 65000.0 || d > 1e4) ? 0.0 : min(length(s - pv), 24.0);
+  float spd = (pv.x > NONE || d > 1e4) ? 0.0 : min(length(s - pv), 24.0);
   float t = clamp(spd / 12.0, 0.0, 1.0);
   vec3 sc = speedColor(t);
   vec3 col = vec3(0.002, 0.0025, 0.004) + sc * (halo * mix(0.35, 1.0, t));
@@ -283,6 +312,7 @@ vec3 shade() {
 void main() { o = vec4(toSrgb(clamp(shade(), 0.0, 1.0)), 1.0); }`;
 
 const MAX_SIDE = 1280; // same working size as the Unreal render targets
+const DEBUG_DPR = parseFloat(new URLSearchParams(location.search).get("fxdpr")) || 0; // ?fxdpr=N, see the top
 
 export class LineFX {
   static supported() {
@@ -312,6 +342,7 @@ export class LineFX {
     const buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    gl.disable(gl.DITHER); // on by default; GPUs that honour it would perturb the packed coordinates
     this.vao = gl.createVertexArray();
     gl.bindVertexArray(this.vao);
     gl.enableVertexAttribArray(0);
@@ -532,7 +563,7 @@ export class LineFX {
     if (this.mode === 0 || this.video.readyState < 2 || !this.video.videoWidth) return;
     const gl = this.gl;
     const c = this.canvas;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = DEBUG_DPR || Math.min(window.devicePixelRatio || 1, 2);
     const cw = Math.max(1, Math.round(c.clientWidth * dpr));
     const ch = Math.max(1, Math.round(c.clientHeight * dpr));
     if (c.width !== cw || c.height !== ch) {
