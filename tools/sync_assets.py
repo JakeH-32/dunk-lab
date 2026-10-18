@@ -181,6 +181,19 @@ SFX_DIR = os.path.join(UNREAL, "Audio", "SFXLib", "processed")  # only the mixed
 SFX_EVENTS = os.path.join(UNREAL, "Tools", "FXLab", "sfx", "events.json")
 
 
+# Curation, the same rules as <unreal>/Tools/FXLab/sfx/render_preview_lib.py (the user approved its previews; keep both
+# in step): nothing after the dunk's landing (+0.3 s), no rim clang on a soft rim hit (the ball just drops through:
+# strength < 0.72, the net still plays), and every clip uses the indoor (court) sounds.
+def curate_events(events, after_landing=0.3, soft_rim=0.72):
+    ev = sorted(events, key=lambda e: e["t"])
+    rim = next((e["t"] for e in ev if e["type"] == "rim"), None)
+    if rim is not None:
+        land = next((e["t"] for e in ev if e["type"] == "landing" and e["t"] >= rim), None)
+        if land is not None:
+            ev = [e for e in ev if e["t"] <= land + after_landing]
+    return [e for e in ev if not (e["type"] == "rim" and e.get("strength", 1) < soft_rim)]
+
+
 def sfx_sprite():
     import subprocess
     import wave
@@ -211,8 +224,8 @@ def sfx_sprite():
         ev = json.load(f)
     clips_ev = {}
     for key, c in ev["clips"].items():
-        clips_ev[key] = {"frames": c["frames"], "surface": c.get("surface", "court"), "slow": c.get("slow", 1),
-                         "events": [{"t": e["t"], "type": e["type"], "s": e["strength"], "pan": e["pan"]} for e in c["events"]]}
+        clips_ev[key] = {"frames": c["frames"], "surface": "court", "slow": c.get("slow", 1),  # indoor set everywhere
+                         "events": [{"t": e["t"], "type": e["type"], "s": e["strength"], "pan": e["pan"]} for e in curate_events(c["events"])]}
     with open(out("assets", "audio", "sfx", "events.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump({"_about": "Sound events per clip, from the Unreal project's Tools/FXLab/sfx/detect_events.py (copied by "
                              "tools/sync_assets.py). t = seconds into the clip, s = strength 0..1, pan = screen position -1..1.",
