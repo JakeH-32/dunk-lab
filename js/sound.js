@@ -2,6 +2,8 @@
 // <audio> element routed through a gain node. Volume must go through Web Audio because iOS Safari
 // ignores HTMLMediaElement.volume. Browsers only allow sound after a user gesture, so the context
 // is created and resumed by unlock(), which main.js calls on the first pointerdown.
+// The dunk sound effects (js/sfx.js) play through their own bus (sfxOutput) on the same context, and duck() dips the
+// music a little around a dunk through a separate gain stage, so it never fights the radio's own volume.
 
 const SFX = {
   hover: "assets/audio/ui/UI_Hover.wav",
@@ -16,6 +18,8 @@ const SFX = {
 let ctx = null;
 const buffers = {};
 let musicGain = null;
+let duckGain = null; // after musicGain: ducking for the dunk sounds
+let sfxBus = null;
 export const music = new Audio();
 music.preload = "auto";
 
@@ -30,7 +34,10 @@ export function unlock() {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     musicGain = ctx.createGain();
     musicGain.gain.value = 0;
-    ctx.createMediaElementSource(music).connect(musicGain).connect(ctx.destination);
+    duckGain = ctx.createGain();
+    sfxBus = ctx.createGain();
+    sfxBus.connect(ctx.destination);
+    ctx.createMediaElementSource(music).connect(musicGain).connect(duckGain).connect(ctx.destination);
     for (const [name, url] of Object.entries(SFX)) {
       fetch(url)
         .then((r) => r.arrayBuffer())
@@ -55,4 +62,31 @@ export function play(name, { volume = 1, rate = 1 } = {}) {
 
 export function setMusicLevel(level) {
   if (musicGain) musicGain.gain.setTargetAtTime(level, ctx.currentTime, 0.015);
+}
+
+// The shared AudioContext (null until the first gesture) and the bus the dunk sound effects play into.
+export function audioContext() {
+  return ctx;
+}
+export function sfxOutput() {
+  return sfxBus;
+}
+
+// Dip the music to `depth` around context time `at`: down over ~0.1 s just before it, back up after `hold` s.
+export function duck(at, hold, depth = 0.6) {
+  if (!duckGain) return;
+  const g = duckGain.gain;
+  const t0 = Math.max(ctx.currentTime, at - 0.1);
+  if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t0);
+  else g.cancelScheduledValues(t0);
+  g.setTargetAtTime(depth, t0, 0.03);
+  g.setTargetAtTime(1, t0 + 0.1 + hold, 0.25);
+}
+// Undo a pending or current dip (the dunk it was for was cancelled: seek, pause, mute).
+export function unduck() {
+  if (!duckGain) return;
+  const g = duckGain.gain;
+  if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(ctx.currentTime);
+  else g.cancelScheduledValues(ctx.currentTime);
+  g.setTargetAtTime(1, ctx.currentTime, 0.08);
 }

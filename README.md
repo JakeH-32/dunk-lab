@@ -28,6 +28,27 @@ corner. This is the browser version of my Unreal Engine 5 class project. It runs
   render targets.
 - **Radio:** five stations with presets, ‹ › tuning, volume (drag the left knob, use − / +, or scroll),
   power, a static burst between stations, and auto-advance to the next song.
+- **Sound effects (`js/sfx.js`):** footsteps, sneaker squeaks, dribbles, the takeoff, the rim and net, and the landing,
+  synced to every clip. They play quietly under the radio, and the radio dips a little at the dunk. The speaker
+  button in the screen's corner (or M) mutes them, and the browser remembers the choice.
+  - **Where the events come from:** the moments are found offline in the Unreal project
+    (`Tools/FXLab/sfx/detect_events.py`, with hand fixes in `overrides.json`). Foot contacts are the dunker's
+    lowest point standing still. Bounces are the ball's sharp down-to-up turns near the floor. The dunk is the ball
+    crossing the rim, projected through the clip's camera.
+  - **The sounds** are real recordings: basketballs on hardwood and concrete, sneakers and squeaks in a gym, rims,
+    and a net. They come from the free Adobe Audition sound effects and from Mixkit, and neither needs attribution.
+    `Tools/FXLab/sfx/build_sfxlib.py` in the Unreal project cuts them into one-shots, with 3-6 variations of each.
+    Outdoor clips use the concrete versions. A sound never repeats its last variation. The credits and licenses are
+    in `Audio/SFXLib/CREDITS.md` there. Only the mixed sprite is published here, never the original files.
+  - **Assets:** `tools/sync_assets.py` packs the sounds into one MP3 sprite, `assets/audio/sfx/sfx.mp3`, with the
+    map `sfx.json`, and copies the events to `events.json`.
+  - **Sync:** each sound is scheduled ahead on the Web Audio clock. `requestVideoFrameCallback` gives the time each
+    frame reaches the screen, and `getOutputTimestamp` gives when audio reaches the speakers, so a sound meets its
+    frame. Measured in headless Chrome, the drift is under 1 ms at normal speed. In slow-mo the median is 0 ms, but
+    single frames reach the screen up to a few refreshes late, so the worst case is about 30-50 ms. Loops, replay,
+    pause and seeks re-anchor the schedule. In SLOW-MO each sound lands on its 4x-later moment at 0.8x rate (a
+    little lower and longer).
+  - **Debugging:** `window.__sfx.log` lists every scheduled sound with its measured drift in ms.
 - **Live court (WebGL2, `js/court.js`):** the background is the court scene rendered in real time, a
   port of the offline renderer `Tools/Brand/court_render.py` in the Unreal project. It uses the same
   pinhole camera, metre units and shading: hardwood and court lines are box-filtered over each

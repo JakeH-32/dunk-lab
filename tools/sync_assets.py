@@ -9,6 +9,9 @@ Run again whenever clips, songs or art change in the Unreal project:
   -> clips/cutout/, plus the dunker's per-frame foot track clips/cutout/feet.json (needs ffmpeg and numpy/scipy)
 - Music:  <unreal>/Audio/*.mp3 and RadioStatic.wav       -> assets/audio/
 - Sounds: <unreal>/Audio/UI/*.wav                        -> assets/audio/ui/
+- Dunk sound effects: <unreal>/Audio/SFXLib/processed/*.wav (recorded one-shots, Tools/FXLab/sfx/build_sfxlib.py)
+  -> one MP3 sprite assets/audio/sfx/sfx.mp3 + sfx.json,
+  and the per-clip events <unreal>/Tools/FXLab/sfx/events.json -> assets/audio/sfx/events.json (js/sfx.js)
 - Art:    ChatGPT's PNGs in <unreal>/Inbox               -> assets/ui/ (icons), assets/radio/
 - Brand:  <unreal>/Tools/Brand/final (logo, monogram, icons, kit/) -> assets/brand/, plus the 1200x630
   share image assets/brand/og.jpg, and the per-clip cameras final/clip_cameras.json -> assets/brand/
@@ -163,6 +166,76 @@ for song in ["DefaultTheme", "Song2", "FastLane", "Over", "Represent", "WeDemBoy
 copy(os.path.join(UNREAL, "Audio", "RadioStatic.wav"), "assets", "audio", "RadioStatic.wav")
 for s in ["UI_Hover", "UI_Select", "UI_Back", "Radio_Button", "Radio_Detent", "Radio_Power"]:
     copy(os.path.join(UNREAL, "Audio", "UI", s + ".wav"), "assets", "audio", "ui", s + ".wav")
+
+
+# ---- Dunk sound effects (js/sfx.js) ----
+# Sounds: <unreal>/Audio/SFXLib/processed/*.wav (real recordings cut into one-shots by Tools/FXLab/sfx/build_sfxlib.py,
+# several variations of each; credits in <unreal>/Audio/SFXLib/CREDITS.md) are packed into ONE mono
+# MP3 sprite, assets/audio/sfx/sfx.mp3, so a phone makes one request and decodes once. assets/audio/sfx/sfx.json lists
+# each variation's [start, duration] in the sprite and each sound's "peak" (seconds from its start to the moment it
+# belongs to). MP3 encoders add a little silence at the start that some decoders keep and some trim, so "calib" is
+# the time of the sprite's first loud sample: the player finds that sample in the decoded audio and shifts every
+# offset by the difference.
+# Events: <unreal>/Tools/FXLab/sfx/events.json (detect_events.py + overrides.json) -> assets/audio/sfx/events.json.
+SFX_DIR = os.path.join(UNREAL, "Audio", "SFXLib", "processed")  # only the mixed sprite is published, never the originals
+SFX_EVENTS = os.path.join(UNREAL, "Tools", "FXLab", "sfx", "events.json")
+
+
+# Curation, the same rules as <unreal>/Tools/FXLab/sfx/render_preview_lib.py (the user approved its previews; keep both
+# in step): nothing after the dunk's landing (+0.3 s), no rim clang on a soft rim hit (the ball just drops through:
+# strength < 0.72, the net still plays), and every clip uses the indoor (court) sounds.
+def curate_events(events, after_landing=0.3, soft_rim=0.72):
+    ev = sorted(events, key=lambda e: e["t"])
+    rim = next((e["t"] for e in ev if e["type"] == "rim"), None)
+    if rim is not None:
+        land = next((e["t"] for e in ev if e["type"] == "landing" and e["t"] >= rim), None)
+        if land is not None:
+            ev = [e for e in ev if e["t"] <= land + after_landing]
+    return [e for e in ev if not (e["type"] == "rim" and e.get("strength", 1) < soft_rim)]
+
+
+def sfx_sprite():
+    import subprocess
+    import wave
+    import numpy as np
+    meta = json.load(open(os.path.join(SFX_DIR, "sounds.json"), encoding="utf-8"))
+    sr = meta["sr"]
+    lead, gap = 0.1, 0.08
+    parts, table, pos = [np.zeros(int(sr * lead), np.int16)], {}, lead
+    for name, s in meta["sounds"].items():
+        table[name] = {"peak": s["peak"], "v": []}
+        for fn in s["files"]:
+            with wave.open(os.path.join(SFX_DIR, fn)) as w:
+                assert w.getframerate() == sr and w.getnchannels() == 1
+                x = np.frombuffer(w.readframes(w.getnframes()), "<i2")
+            table[name]["v"].append([round(pos, 5), round(len(x) / sr, 5)])
+            parts += [x, np.zeros(int(sr * gap), np.int16)]
+            pos += (len(x) + int(sr * gap)) / sr
+    pcm = np.concatenate(parts)
+    calib = float(np.argmax(np.abs(pcm) >= 0.05 * 32768)) / sr
+    dst = out("assets", "audio", "sfx", "sfx.mp3")
+    subprocess.run([ffmpeg_exe(), "-v", "error", "-y", "-f", "s16le", "-ar", str(sr), "-ac", "1", "-i", "-",
+                    "-c:a", "libmp3lame", "-b:a", "96k", dst], input=pcm.tobytes(), check=True)
+    with open(out("assets", "audio", "sfx", "sfx.json"), "w", encoding="utf-8", newline="\n") as f:
+        json.dump({"_about": "Sprite map for sfx.mp3 (tools/sync_assets.py): per sound, peak (s) and variations [start, "
+                             "duration] in s; calib = time of the first sample >= 5% full scale, before encoding.",
+                   "calib": round(calib, 5), "sounds": table}, f, separators=(",", ":"))
+    with open(SFX_EVENTS, encoding="utf-8") as f:
+        ev = json.load(f)
+    clips_ev = {}
+    for key, c in ev["clips"].items():
+        clips_ev[key] = {"frames": c["frames"], "surface": "court", "slow": c.get("slow", 1),  # indoor set everywhere
+                         "events": [{"t": e["t"], "type": e["type"], "s": e["strength"], "pan": e["pan"]} for e in curate_events(c["events"])]}
+    with open(out("assets", "audio", "sfx", "events.json"), "w", encoding="utf-8", newline="\n") as f:
+        json.dump({"_about": "Sound events per clip, from the Unreal project's Tools/FXLab/sfx/detect_events.py (copied by "
+                             "tools/sync_assets.py). t = seconds into the clip, s = strength 0..1, pan = screen position -1..1.",
+                   "fps": ev["fps"], "clips": clips_ev}, f, separators=(",", ":"))
+    print("sfx: %d sounds, %.1f s sprite, %d KB; events for %d clips" % (
+        sum(len(v["v"]) for v in table.values()), len(pcm) / sr, os.path.getsize(dst) // 1024, len(clips_ev)))
+
+
+if os.path.isdir(SFX_DIR) and os.path.exists(SFX_EVENTS):
+    sfx_sprite()
 
 # Icons (white, used as CSS masks) still come from the first UI kit; its chrome pieces were replaced by the brand kit.
 for n in ["icon_play", "icon_pause", "icon_replay", "icon_back", "icon_view", "icon_chevron"]:

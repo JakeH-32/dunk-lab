@@ -362,6 +362,35 @@ button { font-family: inherit; }
   pointer-events: none;
   border-image: url(../assets/brand/kit/screen_bezel.png) 94 76 / 47px 38px stretch; /* opening at half size = #frame padding */
 }
+/* sound effects on/off (M): a small round speaker in the screen's top-right corner */
+#sfx-toggle {
+  position: absolute;
+  top: 47px; /* inside the bezel opening (#frame padding) */
+  right: 38px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(203, 182, 138, 0.45);
+  border-radius: 50%;
+  background: rgba(12, 14, 17, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: var(--gold);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.2s, border-color 0.2s;
+}
+#sfx-toggle:hover { opacity: 1; border-color: var(--gold); }
+#sfx-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+#sfx-toggle .spk { fill: currentColor; stroke: none; }
+#sfx-toggle .cross { display: none; }
+#sfx-toggle.off { color: var(--muted); }
+#sfx-toggle.off .waves { display: none; }
+#sfx-toggle.off .cross { display: inline; }
+html.court #frame:not(.landed) #sfx-toggle { opacity: 0; pointer-events: none; }
 #status {
   position: absolute;
   inset: 0;
@@ -578,6 +607,7 @@ button { font-family: inherit; }
   body.playing #caption, body.playing #frame, body.playing .controls { grid-area: 1 / 1; }
   body.playing #frame { justify-self: stretch; padding: 0; }
   body.playing #frame .bezel { display: none; }
+  body.playing #sfx-toggle { top: max(34px, calc(env(safe-area-inset-top) + 30px)); right: 10px; } /* under the clip name */
   body.playing .screen { width: min(100%, calc(100dvh * var(--ar, 0.5625))); aspect-ratio: var(--ar, 0.5625); margin: 0 auto; border-radius: 0; } /* no bezel here */
   body.playing #frame #video { width: 100%; height: 100%; max-width: none; max-height: none; min-height: 0; }
   body.playing #caption {
