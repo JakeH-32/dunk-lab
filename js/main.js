@@ -1,13 +1,15 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS, CUTOUT, PACKING, REAL } from "./clips.js?v=30";
+import { CLIPS, CUTOUT, PACKING, REAL } from "./clips.js?v=36";
 import { Court, DEFAULT_CAMERA } from "./court.js?v=31";
 import { CutoutLayer } from "./cutout.js?v=32";
 import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=29";
 import { LineFX } from "./fx.js?v=30";
 import { Radio } from "./radio.js?v=35";
-import { DunkSfx } from "./sfx.js?v=35";
+import { DunkSfx } from "./sfx.js?v=36";
 import { play, unlock } from "./sound.js?v=35";
+// cache-buster for the clip videos (bump when a clip is replaced under the same name)
+const CLIP_V = "?v=36";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
@@ -264,7 +266,7 @@ function playDunk(d, t) {
   const packed = !!(cam && cutoutLayer && CUTOUT.has(key));
   video.classList.toggle("packed", packed);
   video.dataset.panelW = packed ? PACKING.w : "";
-  video.src = packed ? `clips/cutout/${key}.mp4` : `clips/${key}.mp4`;
+  video.src = packed ? `clips/cutout/${key}.mp4${CLIP_V}` : `clips/${key}.mp4${CLIP_V}`;
   if (packed) cutoutLayer.setClip(key, clipCams[key], feetData && feetData.clips[key]);
   if (cutoutLayer) cutoutLayer.setActive(false);
   loadReal(key);
@@ -392,7 +394,7 @@ function loadReal(key) {
   $("#slide-hint").hidden = !has;
   setSplit(0);
   if (has) {
-    real.src = `clips/real/${key}.mp4`;
+    real.src = `clips/real/${key}.mp4${CLIP_V}`;
     real.playbackRate = video.playbackRate;
     if (!video.paused) real.play().catch(() => {});
   } else {
@@ -528,7 +530,7 @@ function startCourt() {
     root.classList.remove("court");
     court = null;
   });
-  fetch("assets/brand/clip_cameras.json?v=31")
+  fetch("assets/brand/clip_cameras.json?v=36")
     .then((r) => (r.ok ? r.json() : null))
     .then((j) => (clipCams = j))
     .catch(() => {}); // no cameras: dunks open with a cut, as without the court
@@ -537,7 +539,7 @@ function startCourt() {
     try {
       cutoutLayer = new CutoutLayer($("#cutout"), video, court, PACKING);
       window.__cutout = cutoutLayer;
-      fetch("clips/cutout/feet.json?v=32")
+      fetch("clips/cutout/feet.json?v=36")
         .then((r) => (r.ok ? r.json() : null))
         .then((j) => (feetData = j))
         .catch(() => {}); // no foot track: no contact shadow
