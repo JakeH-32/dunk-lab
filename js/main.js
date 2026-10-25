@@ -1,12 +1,12 @@
 // Menu (takeoff -> dunk) and video player, ported from WBP_MainMenu / WBP_DunkPlayer.
 
-import { CLIPS, CUTOUT, PACKING, REAL } from "./clips.js?v=36";
+import { CLIPS, CUTOUT, PACKING, REAL } from "./clips.js?v=37";
 import { Court, DEFAULT_CAMERA } from "./court.js?v=31";
 import { CutoutLayer } from "./cutout.js?v=32";
 import { DIFFICULTY, DUNKS, TAKEOFFS } from "./data.js?v=29";
 import { LineFX } from "./fx.js?v=30";
 import { Radio } from "./radio.js?v=35";
-import { DunkSfx } from "./sfx.js?v=36";
+import { DunkSfx } from "./sfx.js?v=37";
 import { play, unlock } from "./sound.js?v=35";
 // cache-buster for the clip videos (bump when a clip is replaced under the same name)
 const CLIP_V = "?v=36";
@@ -530,7 +530,7 @@ function startCourt() {
     root.classList.remove("court");
     court = null;
   });
-  fetch("assets/brand/clip_cameras.json?v=36")
+  fetch("assets/brand/clip_cameras.json?v=37")
     .then((r) => (r.ok ? r.json() : null))
     .then((j) => (clipCams = j))
     .catch(() => {}); // no cameras: dunks open with a cut, as without the court
@@ -539,7 +539,7 @@ function startCourt() {
     try {
       cutoutLayer = new CutoutLayer($("#cutout"), video, court, PACKING);
       window.__cutout = cutoutLayer;
-      fetch("clips/cutout/feet.json?v=36")
+      fetch("clips/cutout/feet.json?v=37")
         .then((r) => (r.ok ? r.json() : null))
         .then((j) => (feetData = j))
         .catch(() => {}); // no foot track: no contact shadow

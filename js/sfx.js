@@ -17,7 +17,7 @@
 import { audioContext, duck, sfxOutput, unduck } from "./sound.js?v=35";
 
 const BASE = "assets/audio/sfx/";
-const VERSION = "?v=36";
+const VERSION = "?v=37";
 const STORE = "dunklab.sfx"; // "off" when muted (default on)
 const HORIZON = 0.2; // s of real time scheduled ahead
 const RESCHEDULE = 0.012; // s: an unstarted sound whose ideal time moved more than this is moved
