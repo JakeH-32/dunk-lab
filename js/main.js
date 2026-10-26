@@ -9,7 +9,7 @@ import { Radio } from "./radio.js?v=35";
 import { DunkSfx } from "./sfx.js?v=37";
 import { play, unlock } from "./sound.js?v=35";
 // cache-buster for the clip videos (bump when a clip is replaced under the same name)
-const CLIP_V = "?v=37";
+const CLIP_V = "?v=38";
 
 const $ = (sel) => document.querySelector(sel);
 const subtitle = $("#subtitle");
