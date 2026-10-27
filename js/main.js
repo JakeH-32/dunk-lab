@@ -199,6 +199,8 @@ function showTakeoffs() {
   dunkList.hidden = true;
 }
 
+// Dunks without a clip yet are left off the list (the rest move up). Set to false to show them as COMING SOON cards.
+const HIDE_MISSING = true;
 function showDunks(t) {
   takeoff = t;
   subtitle.textContent = `${t.label.toUpperCase()} TAKEOFF — CHOOSE A DUNK`;
@@ -207,6 +209,7 @@ function showDunks(t) {
     if (d.only && !d.only.includes(t.key)) continue;
     const clip = d.key + t.key;
     const has = CLIPS.has(clip);
+    if (!has && HIDE_MISSING) continue;
     const right = document.createElement("span");
     right.className = "card-right";
     right.innerHTML = has
