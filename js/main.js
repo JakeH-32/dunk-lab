@@ -89,6 +89,7 @@ function update3D() {
   const on = mode === 0;
   $("#player").classList.toggle("view3d", on);
   if (cutoutLayer) cutoutLayer.setActive(on && document.body.dataset.court === "landed");
+  $("#view-close").hidden = on || !can3D(); // the X closes a line-art view, back to ON COURT
 }
 function setSlowMo(on) {
   slowMo = on;
@@ -114,6 +115,8 @@ addEventListener("scroll", () => detailsHint.classList.toggle("gone", scrollY > 
 for (const type of ["gesturestart", "gesturechange"]) document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
 $("#key-view").addEventListener("click", () => setMode((mode + 1) % MODES.length || (can3D() ? 0 : 1)));
 sfxOn($("#key-view"), "select");
+$("#view-close").addEventListener("click", () => setMode(0));
+sfxOn($("#view-close"), "back");
 $("#key-slow").addEventListener("click", () => setSlowMo(!slowMo));
 sfxOn($("#key-slow"), "select");
 setMode(1);

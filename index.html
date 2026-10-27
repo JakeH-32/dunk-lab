@@ -29,7 +29,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto:wght@700&family=Saira:ital,wdth,wght@0,125,500;0,125,600;1,125,600;1,125,700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <link rel="preload" as="image" href="assets/brand/logo_metal.png">
-  <link rel="stylesheet" href="css/style.css?v=35">
+  <link rel="stylesheet" href="css/style.css?v=36">
   <!-- Live WebGL2 court behind the page (js/court.js). Decided before CSS paints, so browsers that will render it
        don't download the static background.jpg; main.js removes the class again if the court can't start. -->
   <script>if (window.WebGL2RenderingContext && !/[?&]court=off(&|$)/.test(location.search)) document.documentElement.classList.add("court");</script>
@@ -63,6 +63,9 @@
           <button type="button" id="sfx-toggle" aria-label="Sound effects" aria-pressed="true">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M3 9.5h4l5-4v13l-5-4H3z"/><path class="waves" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="cross" d="M15.5 9.5l5 5M20.5 9.5l-5 5"/></svg>
           </button>
+          <button type="button" id="view-close" aria-label="Back to ON COURT" title="Back to ON COURT" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>
+          </button>
           <p id="status" hidden></p>
         </div>
         <aside id="explain" aria-live="polite">
@@ -84,6 +87,6 @@
 
   <div id="radio-dock"></div>
 
-  <script type="module" src="js/main.js?v=39"></script>
+  <script type="module" src="js/main.js?v=40"></script>
 </body>
 </html>

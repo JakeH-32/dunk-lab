@@ -383,6 +383,31 @@ button { font-family: inherit; }
   opacity: 0.75;
   transition: opacity 0.2s, border-color 0.2s;
 }
+/* close a line-art view, back to ON COURT: the same round key, left of the speaker */
+#view-close {
+  position: absolute;
+  top: 47px;
+  right: 80px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(203, 182, 138, 0.45);
+  border-radius: 50%;
+  background: rgba(12, 14, 17, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: var(--gold);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.2s, border-color 0.2s;
+}
+#view-close[hidden] { display: none; }
+#view-close svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+#view-close:hover { opacity: 1; border-color: var(--gold); }
+html.court #frame:not(.landed) #view-close { opacity: 0; pointer-events: none; }
 #sfx-toggle:hover { opacity: 1; border-color: var(--gold); }
 #sfx-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 #sfx-toggle .spk { fill: currentColor; stroke: none; }
@@ -608,6 +633,7 @@ html.court #frame:not(.landed) #sfx-toggle { opacity: 0; pointer-events: none; }
   body.playing #frame { justify-self: stretch; padding: 0; }
   body.playing #frame .bezel { display: none; }
   body.playing #sfx-toggle { top: max(34px, calc(env(safe-area-inset-top) + 30px)); right: 10px; } /* under the clip name */
+  body.playing #view-close { top: max(34px, calc(env(safe-area-inset-top) + 30px)); right: 52px; }
   body.playing .screen { width: min(100%, calc(100dvh * var(--ar, 0.5625))); aspect-ratio: var(--ar, 0.5625); margin: 0 auto; border-radius: 0; } /* no bezel here */
   body.playing #frame #video { width: 100%; height: 100%; max-width: none; max-height: none; min-height: 0; }
   body.playing #caption {
